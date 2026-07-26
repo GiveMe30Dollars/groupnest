@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-derive_more = {version = "2.1.1", features = ["deref", "deref_mut", "as_ref"]}
+by_address = "1.2.1"
+derive_more = {version = "2.1.1", features = ["deref", "deref_mut", "as_ref", "from", "into"]}
 expect-test = "1.5.1"
 thiserror = "2.0.19"
+typed-arena = "2.0.2"
 unicode-width = "0.2.2"
 
 [lints.clippy]

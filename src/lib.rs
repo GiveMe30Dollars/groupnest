@@ -1,4 +1,6 @@
 mod document;
+mod arena;
+
 mod layout;
 pub mod lines;
 mod render;

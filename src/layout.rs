@@ -73,8 +73,6 @@ pub struct LayoutEngine<'s, D, A>
 where
     D: Deref<Target = Document<'s, D, A>>,
 {
-    /// The root of the document.
-    document: &'s Document<'s, D, A>,
     /// FIFO queue of pending events, to be emitted. Annotations are borrowed.
     pending: VecDeque<RenderEvent<'s, &'s A>>,
     /// Internal layout state. This is analogous to a LIFO stack of call frames.
@@ -105,7 +103,6 @@ where
                 force_flat: false,
             })],
             cursor: (0, 0),
-            document,
             settings,
         }
     }

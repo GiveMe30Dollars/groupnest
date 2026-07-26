@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Deref},
 };
 
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, From, Into};
 use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
@@ -276,14 +276,14 @@ where
 /// allocated via arena and taking immutable reference to its children and fragments.
 /// Due to reliance on arena allocation, this type may not be `Send + Sync`.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, From, Into)]
 pub struct Doc<'s, 'doc, A = ()>(Document<'s, &'doc Doc<'s, 'doc, A>, A>);
 
 /// The notation document format, owning all of its children and fragments.
 /// This type is `Send + Sync` if the annotation type `A` is `Send + Sync`,
 /// but may suffer from memory fragmentation.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deref, DerefMut, From, Into)]
 pub struct OwnedDoc<A = ()>(Document<'static, Box<OwnedDoc<A>>, A>);
 
 const _: () = {
