@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, ops::Deref};
 
 use crate::{
-    document::{BreakStatus, Document, Group, GroupPolicy, TextFragment},
-    render::{RenderError, RenderEvent},
+    document::{BreakStatus, Document, GroupPolicy, Sequence, TextFragment},
+    render::{LayoutError, RenderEvent},
 };
 
 /// The layout modes to be applied for notation nodes.
@@ -118,7 +118,7 @@ where
                 let line_width = self.cursor.1;
                 if line_width > self.settings.max_width {
                     self.pending
-                        .push_front(RenderEvent::Error(RenderError::WidthExceeded {
+                        .push_front(RenderEvent::Error(LayoutError::WidthExceeded {
                             line_num: self.cursor.0 + 1,
                             max_width: self.settings.max_width,
                             line_width,
@@ -133,8 +133,13 @@ where
         next
     }
 
-    /// Determines for `GroupPolicy::Default` whether this group should display flat or broken.
-    fn determine_mode(&self, group: &Group<D>, callframe: &CallFrame<'s, D, A>) -> LayoutMode {
+    /// Determines for `GroupPolicy::Normal` whether this group should display flat or broken.
+    fn determine_mode(
+        &self,
+        child: &Document<'s, D, A>,
+        callframe: &CallFrame<'s, D, A>,
+    ) -> LayoutMode {
+        let status = child.break_status();
         if callframe.force_flat {
             // Invariant: when force_flat is flipped, it is asserted that this group contains no forced breaks.
             return LayoutMode::Flat;
@@ -142,13 +147,13 @@ where
 
         // Relaxed min-width checking.
         if self.settings.width_constraint == WidthConstraint::Relaxed
-            && matches!(group.status, BreakStatus::FlatLength(span) if span <= self.settings.min_width)
+            && matches!(status, BreakStatus::FlatLength(span) if span <= self.settings.min_width)
         {
             return LayoutMode::Flat;
         }
 
         // Normal fits checking and bounds-checking.
-        if matches!(group.status, BreakStatus::FlatLength(span)
+        if matches!(status, BreakStatus::FlatLength(span)
             if span + callframe.indentation <= self.settings.max_width
         ) {
             LayoutMode::Flat
@@ -203,49 +208,59 @@ where
                 self.next_event()
             }
 
-            Document::Group(group) => {
+            Document::Group(policy, child) => {
                 // Generally, all children must be supplied in reverse order due to LIFO.
-                match group.policy() {
-                    GroupPolicy::Default => {
-                        let mode = self.determine_mode(group, &callframe);
-                        self.push_group_children(group, |child| {
-                            LayoutFrame::CallFrame(CallFrame {
-                                mode,
-                                document: child,
-                                ..callframe
-                            })
-                        });
+                match policy {
+                    GroupPolicy::Normal => {
+                        let mode = self.determine_mode(child, &callframe);
+                        self.state.push(LayoutFrame::CallFrame(CallFrame {
+                            mode,
+                            document: child,
+                            ..callframe
+                        }));
                     }
                     GroupPolicy::ForceFlat => {
-                        self.push_group_children(group, |child| {
-                            LayoutFrame::CallFrame(CallFrame {
-                                mode: if group.status != BreakStatus::MustBreak {
-                                    LayoutMode::Flat
-                                } else {
-                                    LayoutMode::Broken
-                                },
-                                document: child,
-                                force_flat: group.status != BreakStatus::MustBreak,
-                                ..callframe
-                            })
-                        });
+                        self.state.push(LayoutFrame::CallFrame(CallFrame {
+                            mode: if child.break_status() != BreakStatus::MustBreak {
+                                LayoutMode::Flat
+                            } else {
+                                LayoutMode::Broken
+                            },
+                            document: child,
+                            force_flat: child.break_status() != BreakStatus::MustBreak,
+                            ..callframe
+                        }));
                     }
                     GroupPolicy::ForceBreak => {
-                        self.push_group_children(group, |child| {
-                            LayoutFrame::CallFrame(CallFrame {
-                                mode: LayoutMode::Broken,
-                                document: child,
-                                ..callframe
-                            })
-                        });
+                        self.state.push(LayoutFrame::CallFrame(CallFrame {
+                            mode: LayoutMode::Broken,
+                            document: child,
+                            ..callframe
+                        }));
                     }
                 }
                 self.next_event()
             }
+
+            Document::Sequence(sequence) => {
+                self.state
+                    .extend(sequence.children().iter().rev().map(|child| {
+                        LayoutFrame::CallFrame(CallFrame {
+                            document: child,
+                            ..callframe
+                        })
+                    }));
+                self.next_event()
+            }
+
             Document::Nest(nest, inner) => {
                 self.state.push(LayoutFrame::CallFrame(CallFrame {
                     document: inner,
-                    indentation: callframe.indentation + *nest,
+                    indentation: if callframe.mode == LayoutMode::Broken {
+                        callframe.indentation + *nest
+                    } else {
+                        callframe.indentation
+                    },
                     ..callframe
                 }));
                 self.next_event()
@@ -260,15 +275,6 @@ where
                 Some(self.emit(RenderEvent::PushAnnotation(annotation)))
             }
         }
-    }
-
-    /// Helper function for `next_event`: pushes all group children to the state stack.
-    fn push_group_children<F>(&mut self, group: &'s Group<D>, callback: F)
-    where
-        F: Fn(&'s D) -> LayoutFrame<'s, D, A>,
-    {
-        self.state
-            .extend(group.children().iter().rev().map(callback));
     }
 }
 

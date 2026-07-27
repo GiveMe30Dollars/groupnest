@@ -6,7 +6,7 @@ use std::{
 use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{layout::LayoutEngine, lines};
+use crate::{LayoutSettings, layout::LayoutEngine, lines};
 
 /// An flat text fragment.
 /// The payload is asserted to contain no linebreaks upon construction.
@@ -168,62 +168,48 @@ pub enum GroupPolicy {
     /// - If the unbroken length of its children does not exceed the remaining space in this line, display flat.
     /// - Else, display broken.
     #[default]
-    Default,
+    Normal,
     /// Forces this group to always display flat if and only if it contains no forced linebreaks.
-    /// This occurs when this group's children does not contains any of the following:
+    /// This policy fails if this group's children does not contains any of the following:
     /// - One or more `HardLinebreak` nodes.
     /// - One or more groups with the `ForceBreak` policy.
     ///
     /// This policy, when active, overrides the policy of enclosed group nodes, causing the entire notation within to be displayed flat.
     /// Applying this policy onto a group may cause otherwise-adherent groups to violate strict width constraints.
     ForceFlat,
-    /// Forces this group to always display broken.
+    /// Forces this group to always display broken. Children groups may display broken or inline.
+    /// This policy is infallible.
     ForceBreak,
 }
 
-/// A group containing multiple children nodes.
-/// A group node will render based on its policy, the default being to render flat if possible and broken otherwise.
+/// A sequence containing a collection of children.
 ///
 /// Invariants:
 /// - `children` must be immutable due to caching of overall break status.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Group<D> {
+pub struct Sequence<D> {
     children: Box<[D]>,
-    policy: GroupPolicy,
     pub(crate) status: BreakStatus,
 }
-impl<D> Group<D> {
+impl<D> Sequence<D> {
     pub fn children(&self) -> &[D] {
         &self.children
-    }
-    pub fn policy(&self) -> GroupPolicy {
-        self.policy
     }
     pub fn into_children(self) -> Box<[D]> {
         self.children
     }
 }
-impl<'s, D, A> Group<D>
+impl<'s, D, A> Sequence<D>
 where
     D: Deref<Target = Document<'s, D, A>>,
 {
     pub fn new(children: Box<[D]>) -> Self {
-        Self::with_policy(children, GroupPolicy::Default)
-    }
-    pub fn with_policy(children: Box<[D]>, policy: GroupPolicy) -> Self {
-        let status = children.iter().fold(
-            if policy == GroupPolicy::ForceBreak {
-                BreakStatus::MustBreak
-            } else {
-                BreakStatus::FlatLength(0)
-            },
-            |acc, child| acc + child.break_status(),
-        );
-        Group {
-            children,
-            policy,
-            status,
-        }
+        let status = children
+            .iter()
+            .fold(BreakStatus::FlatLength(0), |acc, child| {
+                acc + child.break_status()
+            });
+        Sequence { children, status }
     }
 }
 
@@ -245,18 +231,23 @@ where
 /// - The implementation in `Document` take children of type `D` for nodes with children.
 ///   This may make direct usage inconvenient.
 /// - Document builders and/or wrapper types are encouraged to shadow the smart constructors with morally-equivalent methods:
-///   ```
+///   ```ignore
 ///   pub fn nil() -> Self;
-///   pub fn from_text<F>(payload: impl Into<Cow<'static, str>>) -> Self;
+///   pub fn from_text(payload: impl Into<Cow<'static, str>>) -> Self;
 ///   pub fn flat_text(payload: impl Into<Cow<'static, str>>) -> Result<Self, ContainsLinebreak>;
 ///   pub fn breaker(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Result<Self, BreakNodeInvalid>;
 ///   pub fn hard_linebreak() -> Self;
-///   pub fn group<F>(children: Vec<Self>) -> Self;
-///   pub fn group_with_policy<F>(children: Vec<Self>, policy: GroupPolicy) -> Self;
-///   pub fn nest<F>(indentation: usize, inner: Self) -> Self;
-///   pub fn annotation<F>(annotation: A, inner: Self) -> Self;
+///
+///   pub fn group(child: Self) -> Self;
+///   pub fn group_with(child: Self, policy: GroupPolicy) -> Self;
+///   pub fn sequence(children: Vec<Self>) -> Self;
+///   pub fn sequence_intersperse_with(children: Vec<Self>, separator: Self) -> Self where A : Clone;
+///   pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self;
+///   pub fn nest(indentation: usize, inner: Self) -> Self;
+///
+///   pub fn annotation(annotation: A, inner: Self) -> Self;
 ///   ```
-///   This would likely only require defining and applying the `alloc` closure, which in some cases is just `Into::into`.
+///   This would likely require defining and applying the `alloc` closure, which in some cases is just `Into::into`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as "", carries no meaning, and builders will attempt to eliminate it
@@ -266,15 +257,21 @@ pub enum Document<'s, D, A = ()> {
     Text(FlatFragment<'s>),
     /// A breaking node, which renders differently based on whether the current layout mode is flat or broken.
     /// Also used to express soft linebreaks.
-    /// Respects indentation added by enclosing `Nest` nodes.
+    /// Respects indentation added by enclosing `Nest` nodes;
+    /// avoid using this at the end of a `Nest`.
     Break(Break<'s>),
     /// A hard linebreak.
-    /// Respects indentation added by enclosing `Nest` nodes.
+    /// Respects indentation added by enclosing `Nest` nodes;
+    /// avoid using this at the end of a `Nest`.
     HardLinebreak,
-    /// A group containing multiple children nodes.
+    /// A group, which introduces a layout decision point.
     /// A group node will render based on its policy, the default being to render flat if possible and broken otherwise.
-    Group(Group<D>),
+    Group(GroupPolicy, D),
+    /// A sequence containing a collection of children.
+    Sequence(Sequence<D>),
     /// A node that, if in broken layout mode, will add indentation to its child.
+    /// The additional indentation applies to subsequent `Break` nodes within its child;
+    /// it will not affect the indentation or spacing of the current line.
     Nest(usize, D),
     /// An annotation. The layout engine assumes these do not affect layout choices,
     /// and defers rendering choices to respective Renderer implementors.
@@ -291,10 +288,15 @@ where
             Document::Text(fragment) => BreakStatus::FlatLength(fragment.width),
             Document::Break(inner) => BreakStatus::FlatLength(inner.flat().width),
             Document::HardLinebreak => BreakStatus::MustBreak,
-            Document::Group(group) => {
+            Document::Group(policy, child) => {
                 // We can calculate this recursively, but caching it upon group node construction avoids quadratic complexity.
-                group.status
+                if matches!(policy, GroupPolicy::ForceBreak) {
+                    BreakStatus::MustBreak
+                } else {
+                    child.break_status()
+                }
             }
+            Document::Sequence(sequence) => sequence.status,
             Document::Nest(indent, child) => {
                 BreakStatus::FlatLength(*indent) + child.break_status()
             }
@@ -302,12 +304,19 @@ where
         }
     }
 
-    /// Borrows the notation document to produce a layout engine, with default settings.
+    /// Borrows the notation document to produce a layout engine, using default settings.
     pub fn as_layout<'a>(&'a self) -> LayoutEngine<'s, D, A>
     where
         'a: 's,
     {
         LayoutEngine::new(self)
+    }
+    /// Borrows the notation document to produce a layout engine with the specified settings.
+    pub fn as_layout_with<'a>(&'a self, settings: LayoutSettings) -> LayoutEngine<'s, D, A>
+    where
+        'a: 's,
+    {
+        LayoutEngine::with_settings(self, settings)
     }
 
     // Smart Construction Methods
@@ -344,7 +353,7 @@ where
                 })
             })
             .collect::<Vec<_>>();
-        Self::group(children)
+        Self::sequence(children)
     }
     /// The smart constructor for flat text.
     /// Eliminates empty payloads, returning `Nil` instead.
@@ -379,13 +388,22 @@ where
     }
 
     /// The smart constructor for a group, using the default policy.
-    /// - Eliminates `Nil` children, and if none remain returns `Nil` itself.
-    pub fn group(children: Vec<D>) -> Self {
-        Self::group_with_policy(children, GroupPolicy::Default)
+    pub fn group(child: D) -> Self {
+        Self::group_with(child, GroupPolicy::default())
     }
-    /// The smart constructor for a group with a specified given policy.
+    /// The smart constructor for a group with the specified policy.
+    pub fn group_with(child: D, policy: GroupPolicy) -> Self {
+        // While I previously attempted elimination of outer group depending on policy,
+        // Treating them uniformly was just easier and less prone to error should the layout engine change.
+        // To my knowledge, only (outer, inner) == (ForceFlat, Normal) required special treatment,
+        // as the inner policy of `Normal` is overriden by ForceFlat.
+        // Every other case preferred the inner existing policy.
+        Document::Group(policy, child)
+    }
+
+    /// The smart constructor for a collection sequence.
     /// - Eliminates `Nil` children, and if none remain returns `Nil` itself.
-    pub fn group_with_policy(children: Vec<D>, policy: GroupPolicy) -> Self {
+    pub fn sequence(children: Vec<D>) -> Self {
         let children = children
             .into_iter()
             .filter_map(|elem| match *elem {
@@ -396,13 +414,44 @@ where
         if children.is_empty() {
             Document::Nil
         } else {
-            // While I previously attempted elimination of outer group depending on policy,
-            // Treating them uniformly was just easier and less prone to error should the layout engine change.
-            // To my knowledge, only (outer, inner) == (ForceFlat, Default) required special treatment,
-            // as the inner policy of `Default` is overriden by ForceFlat.
-            // Every other case preferred the inner existing policy.
-            Document::Group(Group::with_policy(children.into_boxed_slice(), policy))
+            Document::Sequence(Sequence::new(children.into_boxed_slice()))
         }
+    }
+    /// The smart constructor for a collection sequence, in which each child is interspersed with a separator.
+    /// `Nil` nodes are filtered out before this interspersion to avoid duplicates.
+    pub fn sequence_intersperse_with(children: Vec<D>, separator: D) -> Self
+    where
+        D: Clone,
+    {
+        if matches!(*separator, Document::Nil) {
+            return Self::sequence(children);
+        }
+        let children = children
+            .into_iter()
+            .filter_map(|elem| match *elem {
+                Document::Nil => None,
+                _ => Some(elem),
+            })
+            .collect::<Vec<_>>();
+        let mut interspersed = Vec::new();
+        for child in children {
+            if interspersed.is_empty() {
+                interspersed.push(child);
+            } else {
+                interspersed.push(separator.clone());
+                interspersed.push(child);
+            }
+        }
+        Self::sequence(interspersed)
+    }
+    /// The smart constructor for a grouped collection sequence with the specified policy.
+    /// Requires `D`-type allocator.
+    pub fn grouped_sequence<F>(children: Vec<D>, policy: GroupPolicy, mut alloc: F) -> Self
+    where
+        F: FnMut(Self) -> D,
+    {
+        let sequence = Self::sequence(children);
+        Self::group_with(alloc(sequence), policy)
     }
 
     /// The smart constructor for nesting.
@@ -415,7 +464,7 @@ where
         }
     }
 
-    /// The `smart` constructor for annotation.
+    /// The `smart` constructor for annotations.
     pub fn annotation(annotation: A, inner: D) -> Self {
         Document::Annotation(annotation, inner)
     }

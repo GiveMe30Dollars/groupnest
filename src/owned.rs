@@ -41,7 +41,7 @@ impl<A> OwnedDoc<A> {
         Document::nil().into()
     }
     /// The smart constructor for literal text.
-    pub fn from_text<F>(payload: impl Into<Cow<'static, str>>) -> Self {
+    pub fn from_text(payload: impl Into<Cow<'static, str>>) -> Self {
         Document::from_text(payload, Into::into).into()
     }
     /// The smart constructor for flat text fragments.
@@ -60,19 +60,34 @@ impl<A> OwnedDoc<A> {
         Document::hard_linebreak().into()
     }
     /// The smart constructor for groups using the default policy.
-    pub fn group<F>(children: Vec<Self>) -> Self {
-        Document::group(children).into()
+    pub fn group(child: Self) -> Self {
+        Document::group(child).into()
     }
     /// The smart constructor for groups with a specified policy.
-    pub fn group_with_policy<F>(children: Vec<Self>, policy: GroupPolicy) -> Self {
-        Document::group_with_policy(children, policy).into()
+    pub fn group_with(child: Self, policy: GroupPolicy) -> Self {
+        Document::group_with(child, policy).into()
+    }
+    /// The smart constructor for a collection sequence.
+    pub fn sequence(children: Vec<Self>) -> Self {
+        Document::sequence(children).into()
+    }
+    /// The smart constructor for a collection sequence with interspersion.
+    pub fn sequence_intersperse_with(children: Vec<Self>, separator: Self) -> Self
+    where
+        A: Clone,
+    {
+        Document::sequence_intersperse_with(children, separator).into()
+    }
+    /// The smart constructor for a grouped sequence.
+    pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self {
+        Document::grouped_sequence(children, policy, Into::into).into()
     }
     /// The smart constructor for nesting.
-    pub fn nest<F>(indentation: usize, inner: Self) -> Self {
+    pub fn nest(indentation: usize, inner: Self) -> Self {
         Document::nest(indentation, inner).into()
     }
     /// The 'smart' constructor for annotations.
-    pub fn annotation<F>(annotation: A, inner: Self) -> Self {
+    pub fn annotation(annotation: A, inner: Self) -> Self {
         Document::annotation(annotation, inner).into()
     }
 }

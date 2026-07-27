@@ -47,7 +47,7 @@ impl<'s, 'doc, A> TryFrom<&'doc Document<'s, Doc<'s, 'doc, A>, A>> for LeafKey<'
     }
 }
 
-/// The builder for `Doc`.
+/// The builder structure for `Doc`.
 ///
 /// ## Note on `Document` Smart Constructors
 ///
@@ -65,6 +65,7 @@ impl<'s, 'doc, A> Debug for DocBuilder<'s, 'doc, A>
 where
     A: Debug,
 {
+    /// Debug information on the backing arena is omitted because `typed_arena::Arena<..>` does not implement Debug.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocBuilder")
             .field("arena", &"[Debug representation hidden]")
@@ -72,10 +73,11 @@ where
             .finish()
     }
 }
+
 impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     /// Create a new DocBuilder. The backing arena must remain live.
     /// If you intend to consume the document in the same scope as the builder:
-    /// ```rs
+    /// ```ignore
     /// let ... = DocBuilder::new(&Arena::new());
     /// ```
     pub fn new(arena: &'doc Arena<Document<'s, Doc<'s, 'doc, A>, A>>) -> Self {
@@ -104,19 +106,23 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         Doc(reference)
     }
 
+    /// The smart constructor for a nil node.
     pub fn nil(&mut self) -> Doc<'s, 'doc, A> {
         self.alloc(Document::nil())
     }
-    pub fn from_text<F>(&mut self, payload: impl Into<Cow<'static, str>>) -> Doc<'s, 'doc, A> {
+    /// The smart constructor for literal text.
+    pub fn from_text(&mut self, payload: impl Into<Cow<'static, str>>) -> Doc<'s, 'doc, A> {
         let document = Document::from_text(payload, |inner| self.alloc(inner));
         self.alloc(document)
     }
+    /// The smart constructor for a flat text fragment.
     pub fn flat_text(
         &mut self,
         payload: impl Into<Cow<'static, str>>,
     ) -> Result<Doc<'s, 'doc, A>, ContainsLinebreak> {
         Document::flat_text(payload).map(|inner| self.alloc(inner))
     }
+    /// The smart constructor for a break node.
     pub fn breaker(
         &mut self,
         flat: impl Into<Cow<'s, str>>,
@@ -124,23 +130,48 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     ) -> Result<Doc<'s, 'doc, A>, BreakNodeInvalid> {
         Document::breaker(flat, broken).map(|inner| self.alloc(inner))
     }
+    /// The smart constructor for a hard linebreak.
     pub fn hard_linebreak(&mut self) -> Doc<'s, 'doc, A> {
         self.alloc(Document::hard_linebreak())
     }
-    pub fn group<F>(&mut self, children: Vec<Doc<'s, 'doc, A>>) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::group(children))
+    /// The smart constructor for a group, using the default policy.
+    pub fn group(&mut self, child: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
+        self.alloc(Document::group(child))
     }
-    pub fn group_with_policy<F>(
+    /// The smart constructor for a group with the specified policy.
+    pub fn group_with(&mut self, child: Doc<'s, 'doc, A>, policy: GroupPolicy) -> Doc<'s, 'doc, A> {
+        self.alloc(Document::group_with(child, policy))
+    }
+    /// The smart constructor for a collection sequence.
+    pub fn sequence(&mut self, children: Vec<Doc<'s, 'doc, A>>) -> Doc<'s, 'doc, A> {
+        self.alloc(Document::sequence(children))
+    }
+    /// The smart constructor for a collection sequence with interspersion.
+    pub fn sequence_intersperse_with(
+        &mut self,
+        children: Vec<Doc<'s, 'doc, A>>,
+        separator: Doc<'s, 'doc, A>,
+    ) -> Doc<'s, 'doc, A>
+    where
+        A: Clone,
+    {
+        self.alloc(Document::sequence_intersperse_with(children, separator))
+    }
+    /// The smart constructor for a grouped sequence.
+    pub fn grouped_sequence(
         &mut self,
         children: Vec<Doc<'s, 'doc, A>>,
         policy: GroupPolicy,
     ) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::group_with_policy(children, policy))
+        let document = Document::grouped_sequence(children, policy, |inner| self.alloc(inner));
+        self.alloc(document)
     }
-    pub fn nest<F>(&mut self, indentation: usize, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
+    /// The smart constructor for nesting.
+    pub fn nest(&mut self, indentation: usize, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
         self.alloc(Document::nest(indentation, inner))
     }
-    pub fn annotation<F>(&mut self, annotation: A, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
+    /// The smart constructor for annotations.
+    pub fn annotation(&mut self, annotation: A, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
         self.alloc(Document::annotation(annotation, inner))
     }
 }
