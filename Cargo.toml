@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 by_address = "1.2.1"
-derive_more = {version = "2.1.1", features = ["deref", "deref_mut", "as_ref", "from", "into"]}
+derive_more = {version = "2.1.1", features = ["as_ref", "from", "into"]}
 expect-test = "1.5.1"
+id-arena = "2.3.0"
 thiserror = "2.0.19"
 typed-arena = "2.0.2"
 unicode-width = "0.2.2"

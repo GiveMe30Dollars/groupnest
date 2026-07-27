@@ -64,9 +64,11 @@ pub fn next_linebreak(text: &str, index: usize) -> Option<(usize, usize)> {
 /// - `'\u{2029}'`: PS, Paragraph Separator
 ///
 /// This iterator is guaranteed to never return strings containing newline characters.
+/// If the string contains trailing newlines, the final line will be the empty string.
 #[derive(Debug, Clone)]
 pub struct Lines<'a> {
     text: &'a str,
+    /// A value greater than the length of the string indicates iterator exhaustion.
     position: usize,
 }
 impl<'a> Lines<'a> {
@@ -76,25 +78,23 @@ impl<'a> Lines<'a> {
 }
 impl<'a> From<&'a str> for Lines<'a> {
     fn from(text: &'a str) -> Self {
-        Lines { text, position: 0 }
+        Self::new(text)
     }
 }
 impl<'a> Iterator for Lines<'a> {
     type Item = &'a str;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.position >= self.text.len() {
+        // Position must be strictly greater than, to handle trailing newlines.
+        if self.position > self.text.len() {
             return None;
         }
         let start = self.position;
         if let Some((offset, span)) = next_linebreak(self.text, start) {
             self.position = offset + span;
-            // Strips trailing newline.
-            if self.position == self.text.len() {
-                self.position += 1;
-            }
             Some(&self.text[start..offset])
         } else {
-            self.position = self.text.len();
+            // Exhausted.
+            self.position = self.text.len() + 1;
             Some(&self.text[start..])
         }
     }
@@ -102,6 +102,7 @@ impl<'a> Iterator for Lines<'a> {
 
 /// An iterator that segmentates strings based on UTF-8 aware vertical linespaces.
 /// This iterator is guaranteed to never return strings containing newline characters.
+/// If the string contains trailing newlines, the final line will be the empty string.
 ///
 /// # Comparison with `Lines`
 ///
@@ -110,6 +111,7 @@ impl<'a> Iterator for Lines<'a> {
 /// Therefore, it takes ownership of its text upon construction.
 pub struct LinesCow<'a> {
     text: Cow<'a, str>,
+    /// A value greater than the length of the string indicates iterator exhaustion.
     position: usize,
 }
 impl<'a> LinesCow<'a> {
@@ -128,22 +130,20 @@ impl<'a> From<Cow<'a, str>> for LinesCow<'a> {
 impl<'a> Iterator for LinesCow<'a> {
     type Item = Cow<'a, str>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.position >= self.text.len() {
+        // Position must be strictly greater than, to handle trailing newlines.
+        if self.position > self.text.len() {
             return None;
         }
         let start = self.position;
         if let Some((offset, span)) = next_linebreak(&self.text, start) {
             self.position = offset + span;
-            // Strips trailing newline.
-            if self.position == self.text.len() {
-                self.position += 1;
-            }
             Some(match &self.text {
                 Cow::Borrowed(slice) => Cow::Borrowed(&slice[start..offset]),
                 Cow::Owned(inner) => Cow::Owned(inner[start..offset].to_owned()),
             })
         } else {
-            self.position = self.text.len();
+            // Exhausted.
+            self.position = self.text.len() + 1;
             Some(match &self.text {
                 Cow::Borrowed(slice) => Cow::Borrowed(&slice[start..]),
                 Cow::Owned(inner) => Cow::Owned(inner[start..].to_owned()),
@@ -190,13 +190,14 @@ mod test {
 
     #[test]
     fn segmentate() {
-        let haystack = "The quick brown fox\r\njumps over\u{2029}the lazy dog.";
+        let haystack = "The quick brown fox\r\njumps over\u{2029}the lazy dog.\n";
         let result = Lines::from(haystack).collect::<Vec<_>>();
         expect![[r#"
             [
                 "The quick brown fox",
                 "jumps over",
                 "the lazy dog.",
+                "",
             ]
         "#]]
         .assert_debug_eq(&result);
@@ -205,13 +206,14 @@ mod test {
     #[test]
     fn ownership() {
         // This function should be identical to `segmentate` but its resultant strings are owned.
-        let haystack = String::from("The quick brown fox\r\njumps over\u{2029}the lazy dog.");
+        let haystack = String::from("The quick brown fox\r\njumps over\u{2029}the lazy dog.\n");
         let result = LinesCow::from(Cow::Owned(haystack)).collect::<Vec<_>>();
         expect![[r#"
             [
                 "The quick brown fox",
                 "jumps over",
                 "the lazy dog.",
+                "",
             ]
         "#]]
         .assert_debug_eq(&result);

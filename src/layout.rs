@@ -134,11 +134,7 @@ where
     }
 
     /// Determines for `GroupPolicy::Default` whether this group should display flat or broken.
-    fn determine_mode(
-        &self,
-        group: &Group<D>,
-        callframe: &CallFrame<'s, D, A>,
-    ) -> LayoutMode {
+    fn determine_mode(&self, group: &Group<D>, callframe: &CallFrame<'s, D, A>) -> LayoutMode {
         if callframe.force_flat {
             // Invariant: when force_flat is flipped, it is asserted that this group contains no forced breaks.
             return LayoutMode::Flat;
@@ -225,7 +221,9 @@ where
                             LayoutFrame::CallFrame(CallFrame {
                                 mode: if group.status != BreakStatus::MustBreak {
                                     LayoutMode::Flat
-                                } else { LayoutMode::Broken },
+                                } else {
+                                    LayoutMode::Broken
+                                },
                                 document: child,
                                 force_flat: group.status != BreakStatus::MustBreak,
                                 ..callframe
