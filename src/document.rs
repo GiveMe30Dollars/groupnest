@@ -238,11 +238,10 @@ where
 ///   pub fn breaker(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Result<Self, BreakNodeInvalid>;
 ///   pub fn hard_linebreak() -> Self;
 ///
-///   pub fn group(child: Self) -> Self;
-///   pub fn group_with(child: Self, policy: GroupPolicy) -> Self;
+///   pub fn group(child: Self, policy: GroupPolicy) -> Self;
+///   pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self;
 ///   pub fn sequence(children: Vec<Self>) -> Self;
 ///   pub fn sequence_intersperse_with(children: Vec<Self>, separator: Self) -> Self where A : Clone;
-///   pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self;
 ///   pub fn nest(indentation: usize, inner: Self) -> Self;
 ///
 ///   pub fn annotation(annotation: A, inner: Self) -> Self;
@@ -275,7 +274,7 @@ pub enum Document<'s, D, A = ()> {
     Nest(usize, D),
     /// An annotation. The layout engine assumes these do not affect layout choices,
     /// and defers rendering choices to respective Renderer implementors.
-    Annotation(A, D),
+    Annotation(Box<A>, D),
 }
 impl<'s, D, A> Document<'s, D, A>
 where
@@ -387,18 +386,23 @@ where
         Document::HardLinebreak
     }
 
-    /// The smart constructor for a group, using the default policy.
-    pub fn group(child: D) -> Self {
-        Self::group_with(child, GroupPolicy::default())
-    }
     /// The smart constructor for a group with the specified policy.
-    pub fn group_with(child: D, policy: GroupPolicy) -> Self {
+    pub fn group(child: D, policy: GroupPolicy) -> Self {
         // While I previously attempted elimination of outer group depending on policy,
         // Treating them uniformly was just easier and less prone to error should the layout engine change.
         // To my knowledge, only (outer, inner) == (ForceFlat, Normal) required special treatment,
         // as the inner policy of `Normal` is overriden by ForceFlat.
         // Every other case preferred the inner existing policy.
         Document::Group(policy, child)
+    }
+    /// The smart constructor for a grouped collection sequence with the specified policy.
+    /// Requires `D`-type allocator.
+    pub fn grouped_sequence<F>(children: Vec<D>, policy: GroupPolicy, mut alloc: F) -> Self
+    where
+        F: FnMut(Self) -> D,
+    {
+        let sequence = Self::sequence(children);
+        Self::group(alloc(sequence), policy)
     }
 
     /// The smart constructor for a collection sequence.
@@ -444,15 +448,6 @@ where
         }
         Self::sequence(interspersed)
     }
-    /// The smart constructor for a grouped collection sequence with the specified policy.
-    /// Requires `D`-type allocator.
-    pub fn grouped_sequence<F>(children: Vec<D>, policy: GroupPolicy, mut alloc: F) -> Self
-    where
-        F: FnMut(Self) -> D,
-    {
-        let sequence = Self::sequence(children);
-        Self::group_with(alloc(sequence), policy)
-    }
 
     /// The smart constructor for nesting.
     /// - Propagates `Nil` nodes.
@@ -466,6 +461,6 @@ where
 
     /// The `smart` constructor for annotations.
     pub fn annotation(annotation: A, inner: D) -> Self {
-        Document::Annotation(annotation, inner)
+        Document::Annotation(Box::new(annotation), inner)
     }
 }

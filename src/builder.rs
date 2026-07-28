@@ -76,9 +76,13 @@ where
 
 impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     /// Create a new DocBuilder. The backing arena must remain live.
-    /// If you intend to consume the document in the same scope as the builder:
-    /// ```ignore
-    /// let ... = DocBuilder::new(&Arena::new());
+    /// Despite the type parameter `A` defaulting to `()` in `Doc` and `Document`,
+    /// it must be specified here.
+    /// If you intend to consume the document in the same scope as the builder and arena:
+    /// ```
+    /// use groupnest::{Arena, DocBuilder};
+    /// let arena = Arena::new();
+    /// let builder: DocBuilder<'_, '_, ()> = DocBuilder::new(&arena);
     /// ```
     pub fn new(arena: &'doc Arena<Document<'s, Doc<'s, 'doc, A>, A>>) -> Self {
         Self {
@@ -134,13 +138,18 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     pub fn hard_linebreak(&mut self) -> Doc<'s, 'doc, A> {
         self.alloc(Document::hard_linebreak())
     }
-    /// The smart constructor for a group, using the default policy.
-    pub fn group(&mut self, child: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::group(child))
-    }
     /// The smart constructor for a group with the specified policy.
-    pub fn group_with(&mut self, child: Doc<'s, 'doc, A>, policy: GroupPolicy) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::group_with(child, policy))
+    pub fn group(&mut self, child: Doc<'s, 'doc, A>, policy: GroupPolicy) -> Doc<'s, 'doc, A> {
+        self.alloc(Document::group(child, policy))
+    }
+    /// The smart constructor for a grouped sequence.
+    pub fn grouped_sequence(
+        &mut self,
+        children: Vec<Doc<'s, 'doc, A>>,
+        policy: GroupPolicy,
+    ) -> Doc<'s, 'doc, A> {
+        let document = Document::grouped_sequence(children, policy, |inner| self.alloc(inner));
+        self.alloc(document)
     }
     /// The smart constructor for a collection sequence.
     pub fn sequence(&mut self, children: Vec<Doc<'s, 'doc, A>>) -> Doc<'s, 'doc, A> {
@@ -156,15 +165,6 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         A: Clone,
     {
         self.alloc(Document::sequence_intersperse_with(children, separator))
-    }
-    /// The smart constructor for a grouped sequence.
-    pub fn grouped_sequence(
-        &mut self,
-        children: Vec<Doc<'s, 'doc, A>>,
-        policy: GroupPolicy,
-    ) -> Doc<'s, 'doc, A> {
-        let document = Document::grouped_sequence(children, policy, |inner| self.alloc(inner));
-        self.alloc(document)
     }
     /// The smart constructor for nesting.
     pub fn nest(&mut self, indentation: usize, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {

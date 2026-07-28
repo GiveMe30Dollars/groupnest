@@ -59,13 +59,13 @@ impl<A> OwnedDoc<A> {
     pub fn hard_linebreak() -> Self {
         Document::hard_linebreak().into()
     }
-    /// The smart constructor for groups using the default policy.
-    pub fn group(child: Self) -> Self {
-        Document::group(child).into()
-    }
     /// The smart constructor for groups with a specified policy.
-    pub fn group_with(child: Self, policy: GroupPolicy) -> Self {
-        Document::group_with(child, policy).into()
+    pub fn group(child: Self, policy: GroupPolicy) -> Self {
+        Document::group(child, policy).into()
+    }
+    /// The smart constructor for a grouped sequence.
+    pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self {
+        Document::grouped_sequence(children, policy, Into::into).into()
     }
     /// The smart constructor for a collection sequence.
     pub fn sequence(children: Vec<Self>) -> Self {
@@ -77,10 +77,6 @@ impl<A> OwnedDoc<A> {
         A: Clone,
     {
         Document::sequence_intersperse_with(children, separator).into()
-    }
-    /// The smart constructor for a grouped sequence.
-    pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self {
-        Document::grouped_sequence(children, policy, Into::into).into()
     }
     /// The smart constructor for nesting.
     pub fn nest(indentation: usize, inner: Self) -> Self {

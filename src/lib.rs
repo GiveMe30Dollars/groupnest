@@ -1,6 +1,6 @@
 pub mod document;
 
-mod arena;
+mod builder;
 mod owned;
 
 pub mod layout;
@@ -8,7 +8,7 @@ pub mod lines;
 pub mod render;
 
 pub use crate::{
-    arena::{Doc, DocBuilder},
+    builder::{Doc, DocBuilder},
     document::GroupPolicy,
     layout::{LayoutEngine, LayoutMode, LayoutSettings, WidthConstraint},
     owned::OwnedDoc,

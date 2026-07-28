@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, ops::Deref};
 
 use crate::{
-    document::{BreakStatus, Document, GroupPolicy, Sequence, TextFragment},
+    document::{BreakStatus, Document, GroupPolicy, TextFragment},
     render::{LayoutError, RenderEvent},
 };
 

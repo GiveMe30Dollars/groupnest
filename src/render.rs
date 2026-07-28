@@ -1,6 +1,4 @@
-use std::{error::Error, ops::Deref};
 
-use derive_more::From;
 use thiserror::Error;
 
 /// A data structure representing events to be consumed by a Renderer when streaming pretty printed text.
@@ -94,6 +92,8 @@ where
 
 /// An extremely trivial trait to determine whether a type is Unit `()`, or any form of reference to it.
 /// This is used so that plaintext renderers can ignore its annotation.
+/// 
+/// **Do not implement this trait.** Use `RenderAdaptor` if you want to replace annotations with an ignorable unit payload.
 pub trait IsTrivial {}
 impl IsTrivial for () {}
 impl<T: IsTrivial> IsTrivial for &T {}
@@ -107,6 +107,7 @@ pub trait Renderer<A> {
     /// Receives a render event.
     fn receive<'s>(&mut self, event: RenderEvent<'s, A>) -> Result<(), Self::Error>;
     /// Signals the end of the event stream. Defaults to no-op.
+    /// This may be used to flush buffers etc.
     fn finish(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -123,7 +124,7 @@ pub trait Renderer<A> {
     }
 }
 
-/// A plaintext renderer. Does not accept annotations.
+/// A plaintext renderer.
 #[derive(Debug, Clone, Default)]
 pub struct PlaintextRenderer<W> {
     pub inner: W,
@@ -136,7 +137,7 @@ impl<W> PlaintextRenderer<W> {
             pending_padding: 0,
         }
     }
-    pub fn from_events<'s, A>(
+    pub fn render<'s, A>(
         iterator: impl Iterator<Item = RenderEvent<'s, A>>,
     ) -> Result<W, <Self as Renderer<A>>::Error>
     where
@@ -148,33 +149,44 @@ impl<W> PlaintextRenderer<W> {
         Ok(renderer.inner)
     }
 }
-/// The error type of plaintext rendering.
-#[derive(Debug, Clone, Error)]
-pub enum PlaintextRenderError<E> {
-    #[error(transparent)]
-    External(#[from] E),
-    #[error(transparent)]
-    LayoutError(LayoutError),
+impl PlaintextRenderer<Vec<u8>> {
+    pub fn render_to_string<'s, A>(
+        iterator: impl Iterator<Item = RenderEvent<'s, A>>
+    ) -> Result<String, <Self as Renderer<A>>::Error>
+    where
+        A: IsTrivial,
+    {
+        Ok(String::try_from(Self::render(iterator)?).unwrap())
+    }
 }
+/// The error type of plaintext rendering.
+#[derive(Debug, Error)]
+pub enum PlaintextRenderError {
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+    #[error(transparent)]
+    LayoutError(#[from] LayoutError),
+}
+/// Plaintext rendering does not accept annotations, thus requiring a unit payload.
 impl<W, A> Renderer<A> for PlaintextRenderer<W>
 where
-    W: std::fmt::Write,
+    W: std::io::Write,
     A: IsTrivial,
 {
-    type Error = PlaintextRenderError<std::fmt::Error>;
+    type Error = PlaintextRenderError;
 
     fn receive<'s>(&mut self, event: RenderEvent<'s, A>) -> Result<(), Self::Error> {
         match event {
             RenderEvent::Text(_, s) => {
                 if self.pending_padding > 0 {
-                    self.inner.write_str(&" ".repeat(self.pending_padding))?;
+                    self.inner.write_all(" ".repeat(self.pending_padding).as_bytes())?;
                     self.pending_padding = 0;
                 }
-                self.inner.write_str(s)?;
+                self.inner.write_all(s.as_bytes())?;
             }
             RenderEvent::Linebreak => {
                 self.pending_padding = 0;
-                self.inner.write_char('\n')?;
+                self.inner.write_all("\n".as_bytes())?;
             }
             RenderEvent::Padding(num) => {
                 self.pending_padding += num;
@@ -185,32 +197,7 @@ where
         }
         Ok(())
     }
+    fn finish(&mut self) -> Result<(), Self::Error> {
+        Ok(self.inner.flush()?)
+    }
 }
-// impl<W, A> Renderer<A> for PlaintextRenderer<W> where W : std::io::Write, A : ToOwned<Owned = ()> {
-//     type Error = PlaintextRenderError<std::io::Error>;
-
-//     fn receive<'s>(&mut self, event: RenderEvent<'s, A>) -> Result<(), Self::Error> {
-//         match event {
-//             RenderEvent::Text(_, s) => {
-//                 if self.pending_padding > 0 {
-//                     self.inner.write_str(&" ".repeat(self.pending_padding))?;
-//                     self.pending_padding = 0;
-//                 }
-//                 self.inner.write_str(s)?;
-//             },
-//             RenderEvent::Linebreak => {
-//                 self.pending_padding = 0;
-//                 self.inner.write_char('\n')?;
-//             },
-//             RenderEvent::Padding(num) => {
-//                 self.pending_padding += num;
-//             },
-//             RenderEvent::PushAnnotation(_) => (),
-//             RenderEvent::PopAnnotation => (),
-//             RenderEvent::Error(e) => {
-//                 return Err(PlaintextRenderError::LayoutError(e))
-//             },
-//         }
-//         Ok(())
-//     }
-// }

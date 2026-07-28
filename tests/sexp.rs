@@ -2,7 +2,7 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings, RenderAdaptorExt, Renderer,
+    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings,
     WidthConstraint, render::PlaintextRenderer,
 };
 
@@ -48,7 +48,7 @@ fn generate_doc() {
     let arena = Arena::new();
     let doc = template.to_doc(&mut DocBuilder::new(&arena));
     let layout = doc.as_layout();
-    let result = PlaintextRenderer::<String>::from_events(layout).unwrap();
+    let result = PlaintextRenderer::render_to_string(layout).unwrap();
     expect!["((1) (2 3) (4 5 6))"].assert_eq(&result);
 }
 
@@ -67,7 +67,7 @@ fn cramped() {
         width_constraint: WidthConstraint::Relaxed,
         initial_mode: LayoutMode::Flat,
     });
-    let result = PlaintextRenderer::<String>::from_events(layout).unwrap();
+    let result = PlaintextRenderer::render_to_string(layout).unwrap();
     expect![[r#"
         (
           (1),
