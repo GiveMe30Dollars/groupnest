@@ -12,6 +12,6 @@ pub use crate::{
     document::GroupPolicy,
     layout::{LayoutEngine, LayoutMode, LayoutSettings, WidthConstraint},
     owned::OwnedDoc,
-    render::{RenderAdaptor, RenderAdaptorExt, Renderer},
+    render::{RenderAdaptorExt, Renderer},
 };
 pub use typed_arena::{self, Arena};

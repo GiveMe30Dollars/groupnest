@@ -2,8 +2,8 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings,
-    WidthConstraint, render::PlaintextRenderer,
+    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings, WidthConstraint,
+    render::PlaintextRenderer,
 };
 
 enum SExp {

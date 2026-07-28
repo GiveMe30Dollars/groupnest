@@ -1,4 +1,3 @@
-
 use thiserror::Error;
 
 /// A data structure representing events to be consumed by a Renderer when streaming pretty printed text.
@@ -35,27 +34,34 @@ pub enum LayoutError {
 }
 
 /// An iterator adaptor for mapping onto the annotation type of each item.
-pub struct RenderAdaptor<'s, I, A, B>
+///
+/// This type is not intended to be used directly.
+/// The idiomatic usage would be to import `RenderAdaptorExt` and use method chaining.
+/// ```
+pub struct RenderAdaptor<'s, A, I, F>
 where
     I: Iterator<Item = RenderEvent<'s, A>>,
 {
-    iterator: Box<I>,
-    closure: Box<dyn FnMut(A) -> B>,
+    iterator: I,
+    closure: F,
 }
-impl<'s, I, A, B> RenderAdaptor<'s, I, A, B>
+impl<'s, A, I, F, B> RenderAdaptor<'s, A, I, F>
 where
     I: Iterator<Item = RenderEvent<'s, A>>,
+    F: FnMut(A) -> B,
 {
-    pub fn new(iterator: I, closure: impl FnMut(A) -> B + 'static) -> Self {
-        Self {
-            iterator: Box::new(iterator),
-            closure: Box::new(closure),
-        }
+    pub fn new<'c>(iterator: I, closure: F) -> Self
+    where
+        Self: 'c,
+        F: 'c,
+    {
+        Self { iterator, closure }
     }
 }
-impl<'s, I, A, B> Iterator for RenderAdaptor<'s, I, A, B>
+impl<'s, A, I, F, B> Iterator for RenderAdaptor<'s, A, I, F>
 where
     I: Iterator<Item = RenderEvent<'s, A>>,
+    F: FnMut(A) -> B,
 {
     type Item = RenderEvent<'s, B>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -75,25 +81,32 @@ where
     }
 }
 
-/// Extension trait for chaining `.map_annotation(..)` by wrapping `RenderAdaptor`.
-pub trait RenderAdaptorExt<'s, A, B> {
-    type IteratorType;
-    fn map_annotation(self, closure: impl Fn(A) -> B + 'static) -> Self::IteratorType;
-}
-impl<'s, I, A, B> RenderAdaptorExt<'s, A, B> for I
+/// Extension trait for iterator chaining of `.map_annotation(f)` and `.strip_annotation()`.
+///
+/// This trait is blanket-implemented for compatible iterators.
+pub trait RenderAdaptorExt<'s, A>
 where
-    I: Iterator<Item = RenderEvent<'s, A>>,
+    Self: Iterator<Item = RenderEvent<'s, A>> + Sized,
 {
-    type IteratorType = RenderAdaptor<'s, I, A, B>;
-    fn map_annotation(self, closure: impl Fn(A) -> B + 'static) -> Self::IteratorType {
+    /// Given a closure, map annotations from self, leaving all other events intact.
+    fn map_annotation<'c, B, F>(self, closure: F) -> RenderAdaptor<'s, A, Self, F>
+    where
+        Self: 'c,
+        F: FnMut(A) -> B + 'c,
+    {
         RenderAdaptor::new(self, closure)
     }
+    fn strip_annotation(self) -> RenderAdaptor<'s, A, Self, Box<dyn FnMut(A)>> {
+        let strip: Box<dyn FnMut(A)> = Box::new(|_| ());
+        RenderAdaptor::new(self, strip)
+    }
 }
+impl<'s, A, I> RenderAdaptorExt<'s, A> for I where I: Iterator<Item = RenderEvent<'s, A>> {}
 
 /// An extremely trivial trait to determine whether a type is Unit `()`, or any form of reference to it.
 /// This is used so that plaintext renderers can ignore its annotation.
-/// 
-/// **Do not implement this trait.** Use `RenderAdaptor` if you want to replace annotations with an ignorable unit payload.
+///
+/// **Do not implement this trait.** Use `.strip_annotation()` if you want to replace annotations with an ignorable unit payload.
 pub trait IsTrivial {}
 impl IsTrivial for () {}
 impl<T: IsTrivial> IsTrivial for &T {}
@@ -151,7 +164,7 @@ impl<W> PlaintextRenderer<W> {
 }
 impl PlaintextRenderer<Vec<u8>> {
     pub fn render_to_string<'s, A>(
-        iterator: impl Iterator<Item = RenderEvent<'s, A>>
+        iterator: impl Iterator<Item = RenderEvent<'s, A>>,
     ) -> Result<String, <Self as Renderer<A>>::Error>
     where
         A: IsTrivial,
@@ -179,7 +192,8 @@ where
         match event {
             RenderEvent::Text(_, s) => {
                 if self.pending_padding > 0 {
-                    self.inner.write_all(" ".repeat(self.pending_padding).as_bytes())?;
+                    self.inner
+                        .write_all(" ".repeat(self.pending_padding).as_bytes())?;
                     self.pending_padding = 0;
                 }
                 self.inner.write_all(s.as_bytes())?;
