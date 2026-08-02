@@ -2,7 +2,8 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings, LayoutWidthConstraint,
+    Arena, Doc, DocBuilder, GroupPolicy,
+    layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
     renderer::PlaintextRenderer,
 };
 

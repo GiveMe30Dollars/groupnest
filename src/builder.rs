@@ -3,16 +3,13 @@ use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Deref};
 use derive_more::{From, Into};
 use typed_arena::Arena;
 
-use crate::document::{
-    Break, Document, FlatFragment, GroupPolicy,
-};
+use crate::document::{Break, Document, FlatFragment, GroupPolicy};
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
+///
 /// Due to reliance on arena allocation, this type may not be `Send + Sync`.
 ///
-/// Refer to `Document` for more information.
-///
-/// ## Note on `Document` Smart Constructors
+/// ## Note on [`Document`](crate::document::Document) Smart Constructors
 ///
 /// Due to not owning its internals, this type cannot construct itself.
 /// It is the responsibility of `DocBuilder` and similar data structures to implement the `Document` smart constructors.
@@ -49,13 +46,13 @@ impl<'s, 'doc, A> TryFrom<&'doc Document<'s, Doc<'s, 'doc, A>, A>> for LeafKey<'
 
 /// The builder structure for `Doc`.
 ///
-/// ## Note on `Document` Smart Constructors
+/// ## Note on [`Document`](crate::document::Document) Smart Constructors
 ///
 /// Due to interning and arena allocation, a `&mut self` parameter is taken for all smart constructors.
 ///
-/// ## Note on `Debug`
+/// ## Note on [`Debug`](std::fmt::Debug)
 ///
-/// Debug information on the backing arena is omitted because `typed_arena::Arena<..>` does not implement Debug.
+/// Debug information on the backing arena is omitted because [`typed_arena::Arena`] does not implement Debug.
 #[derive(Clone)]
 pub struct DocBuilder<'s, 'doc, A> {
     arena: &'doc Arena<Document<'s, Doc<'s, 'doc, A>, A>>,
@@ -65,7 +62,7 @@ impl<'s, 'doc, A> Debug for DocBuilder<'s, 'doc, A>
 where
     A: Debug,
 {
-    /// Debug information on the backing arena is omitted because `typed_arena::Arena<..>` does not implement Debug.
+    /// Debug information on the backing arena is omitted because [`typed_arena::Arena`] does not implement Debug.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocBuilder")
             .field("arena", &"[Debug representation hidden]")
@@ -74,10 +71,7 @@ where
     }
 }
 
-impl<'s, 'doc, A> DocBuilder<'s, 'doc, A>
-where
-
-{
+impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     /// Create a new DocBuilder. The backing arena must remain live.
     /// Despite the type parameter `A` defaulting to `()` in `Doc` and `Document`,
     /// it must be specified here.
@@ -118,36 +112,39 @@ where
         Document::nil(|doc| self.alloc(doc))
     }
     /// The smart constructor for literal text.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the payload contains tabs.
     pub fn from_text(&mut self, payload: impl Into<Cow<'s, str>>) -> Doc<'s, 'doc, A> {
         Document::from_text(payload, |inner| self.alloc(inner))
-            .map_err(|err| panic!("{err}")).unwrap()
+            .map_err(|err| panic!("{err}"))
+            .unwrap()
     }
-    
+
     /// The smart constructor for flat text fragments.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the payload contains newline sequences or tabs.
     pub fn flat_text(&mut self, payload: impl Into<Cow<'s, str>>) -> Doc<'s, 'doc, A> {
         Document::flat_text(payload, |inner| self.alloc(inner))
-            .map_err(|err| panic!("{err}")).unwrap()
+            .map_err(|err| panic!("{err}"))
+            .unwrap()
     }
     /// The smart constructor for break nodes.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
     pub fn breaker(
-        &mut self, 
+        &mut self,
         flat: impl Into<Cow<'s, str>>,
         broken: impl Into<Cow<'s, str>>,
     ) -> Doc<'s, 'doc, A> {
         Document::breaker(flat, broken, |inner| self.alloc(inner))
-            .map_err(|err| panic!("{err}")).unwrap()
+            .map_err(|err| panic!("{err}"))
+            .unwrap()
     }
     /// The smart constructor for a hard linebreak.
     pub fn hard_linebreak(&mut self) -> Doc<'s, 'doc, A> {

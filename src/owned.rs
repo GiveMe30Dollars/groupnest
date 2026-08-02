@@ -5,11 +5,11 @@ use std::{
 
 use crate::document::{Document, GroupPolicy};
 
-/// The notation document format, owning all of its children and fragments.
-/// This type is `Send + Sync` if the annotation type `A` is `Send + Sync`,
-/// but may suffer from memory fragmentation.
+/// The notation document format, owning and heap-allocating all of its children and fragments.
 ///
-/// Refer to `Document` for more information on smart constructors.
+/// This type is `Send + Sync` if the annotation type `A` is `Send + Sync`.
+///
+/// Refer to [`Document`](crate::document::Document) for more information on smart constructors.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OwnedDoc<A = ()>(pub Box<Document<'static, Self, A>>);
@@ -43,12 +43,13 @@ impl<A> OwnedDoc<A> {
     /// The smart constructor for literal text.
     pub fn from_text(payload: impl Into<Cow<'static, str>>) -> Self {
         Document::from_text(payload, Into::into)
-            .map_err(|err| panic!("{err}")).unwrap()
+            .map_err(|err| panic!("{err}"))
+            .unwrap()
     }
     /// The smart constructor for literal text.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the payload contains tabs.
     pub fn flat_text(payload: impl Into<Cow<'static, str>>) -> Self {
         Document::flat_text(payload, Into::into)
@@ -56,9 +57,9 @@ impl<A> OwnedDoc<A> {
             .unwrap()
     }
     /// The smart constructor for break nodes.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
     pub fn breaker(
         flat: impl Into<Cow<'static, str>>,

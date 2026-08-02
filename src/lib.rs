@@ -1,3 +1,6 @@
+//! [`Document`]: crate::document::Document
+#![doc = include_str!("../README.md")]
+
 pub mod document;
 
 mod builder;
@@ -10,18 +13,12 @@ pub mod renderer;
 pub use crate::{
     builder::{Doc, DocBuilder},
     document::GroupPolicy,
-    layout::{LayoutEngine, LayoutMode, LayoutSettings, LayoutWidthConstraint},
     owned::OwnedDoc,
-    renderer::{
-        RenderAdaptorExt, Renderer, RenderError, 
-        PlaintextRenderer
-    },
+    renderer::{PlaintextRenderer, RenderAdaptorExt, Renderer},
 };
 pub use typed_arena::{self, Arena};
 
 #[cfg(feature = "termcolor")]
-pub use termcolor;
+pub use crate::renderer::{ColorPatch, TermcolorRenderer};
 #[cfg(feature = "termcolor")]
-pub use crate::renderer::{
-    ColorPatch, TermcolorRenderer
-};
+pub use termcolor;

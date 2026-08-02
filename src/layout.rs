@@ -1,3 +1,7 @@
+//! Definition and configuration options for layout generation.
+//!
+//! Refer to [`LayoutEngine`] for further explanation.
+
 use std::{collections::VecDeque, ops::Deref};
 
 use crate::{
@@ -67,7 +71,12 @@ struct CallFrame<'s, D, A> {
     pub force_flat: bool,
 }
 
-/// The layout engine, which borrows a notation document and functions as an iterator over resultant render events.
+/// The layout engine, which borrows a Wadler-style notation document and functions as an iterator over resultant render events.
+///
+/// Parameterized over:
+/// - `'s`: the lifetime of owned or borrowed string fragments, which are of type `Cow<'s, str>`.
+/// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.
+/// - `A`: the type of annotations. Defaults to unit type `()`.
 #[derive(Debug, Clone)]
 pub struct LayoutEngine<'s, D, A>
 where

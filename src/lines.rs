@@ -1,6 +1,6 @@
-//! This module contains the functions used to identify, validate and split strings containing vertical whitespace.
+//! Identifies, validates and splits strings containing vertical whitespace.
 //!
-//! # Comparison with `std::str::lines`
+//! # Comparison with [`std::str::lines()`](std::str::Lines)
 //!
 //! `std::str::lines` identifies the following as newline sequences:
 //! - `'\n'`: NL, Newline
@@ -53,7 +53,7 @@ pub fn next_linebreak(text: &str, index: usize) -> Option<(usize, usize)> {
 }
 
 /// An iterator that segmentates strings based on UTF-8 aware vertical linespaces.
-/// Unline the iterator produced by `std::str::lines`, this iterator is URF-8 aware, and identifies the following as newlines:
+/// Unline the iterator produced by [`std::str::lines()`](std::str::Lines), this iterator is URF-8 aware, and identifies the following as newlines:
 /// - `'\n'`: NL, Newline
 /// - `'\r'`: CR, Carriage Return
 /// - `"\r\n"`: CRLF sequence, ie. Windows newline.
@@ -104,9 +104,9 @@ impl<'a> Iterator for Lines<'a> {
 /// This iterator is guaranteed to never return strings containing newline characters.
 /// If the string contains trailing newlines, the final line will be the empty string.
 ///
-/// # Comparison with `Lines`
+/// # Comparison with [`Lines`]
 ///
-/// This iterator returns owned or borrowed strings (typed `Cow<'a, str>`) depending on
+/// This iterator returns owned or borrowed strings (typed [`Cow<'a, str>`]) depending on
 /// whether the string used to instantiate it is owned or borrowed.
 /// Therefore, it takes ownership of its text upon construction.
 pub struct LinesCow<'a> {

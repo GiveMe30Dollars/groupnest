@@ -1,3 +1,7 @@
+//! Definition and related types for document representation.
+//!
+//! Refer to `Document` for explanation.
+
 use std::{
     borrow::Cow,
     ops::{Add, Deref},
@@ -6,7 +10,10 @@ use std::{
 use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
-use crate::{LayoutSettings, layout::LayoutEngine, lines};
+use crate::{
+    layout::{LayoutEngine, LayoutSettings},
+    lines,
+};
 
 /// An flat text fragment.
 /// The payload is asserted to contain no linebreaks upon construction.
@@ -20,14 +27,14 @@ pub struct FlatFragment<'s> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
 pub enum ContainsTab {
     #[error("Contains tab at byte offset {0} of string '{1:?}'.")]
-    ContainsTab(usize, String)
+    ContainsTab(usize, String),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
 pub enum FragmentError {
     #[error("Contains linebreak sequence {0:?} at byte offset {1} of string '{2:?}'.")]
     ContainsLinebreak(String, usize, String),
     #[error(transparent)]
-    ContainsTab(#[from] ContainsTab)
+    ContainsTab(#[from] ContainsTab),
 }
 impl<'s> FlatFragment<'s> {
     /// Provides an immutable reference into the inner payload.
@@ -46,7 +53,7 @@ impl<'s> FlatFragment<'s> {
     pub fn new(payload: impl Into<Cow<'s, str>>) -> Result<Self, FragmentError> {
         let inner = payload.into();
         if let Some(index) = inner.find("\t") {
-            return Err(ContainsTab::ContainsTab(index, inner.to_string()).into())
+            return Err(ContainsTab::ContainsTab(index, inner.to_string()).into());
         }
         if let Some((index, span)) = lines::next_linebreak(&inner, 0) {
             return Err(FragmentError::ContainsLinebreak(
@@ -71,14 +78,16 @@ pub enum TextFragment<'s> {
 }
 impl<'s> TextFragment<'s> {
     /// Given raw text, segmentate it along newline separators and return zero, one or more text fragments.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// This function fails if the payload contains any tabs.
-    pub fn from_text(payload: impl Into<Cow<'s, str>>) -> Result<Vec<TextFragment<'s>>, ContainsTab> {
+    pub fn from_text(
+        payload: impl Into<Cow<'s, str>>,
+    ) -> Result<Vec<TextFragment<'s>>, ContainsTab> {
         let inner: Cow<'s, str> = payload.into();
         if let Some(index) = inner.find('\t') {
-            return Err(ContainsTab::ContainsTab(index, inner.to_string()))
+            return Err(ContainsTab::ContainsTab(index, inner.to_string()));
         }
         let mut lines_iter = lines::LinesCow::new(inner)
             .map(|line| TextFragment::Text(FlatFragment::new(line).unwrap()))
@@ -161,10 +170,13 @@ impl<'s> Break<'s> {
     }
 }
 
-/// An enum regarding whether the contents of a Group node can be displayed flat.
+/// An enum regarding whether the contents of a [`Document::Group`] node can be displayed flat.
+///
+/// Used for [`LayoutSettings`] configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BreakStatus {
-    /// This group contains one or more `HardLinebreaks`. This group *must* be displayed broken, regardless of policy.
+    /// This group contains one or more [`Document::HardLinebreak`], or [`Document::Group`] with policy [`GroupPolicy::ForceBreak`].
+    /// This group *must* be displayed broken, regardless of current policy.
     MustBreak,
     /// This group has a minimal flat length. Whether it is displayed flat or broken depends on the group policy.
     FlatLength(usize),
@@ -182,34 +194,40 @@ impl Add for BreakStatus {
     }
 }
 
-/// The group policy governing how a group node interacts with layout.
+/// The group policy governing how a [`Document::Group`] node interacts with layout.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum GroupPolicy {
     /// The default policy.
-    /// - If the unbroken length of its children is no more than a minimum threshold within relaxed constraints, display flat.
-    /// - If the unbroken length of its children does not exceed the remaining space in this line, display flat.
+    /// - If the flat length is no more than a minimum threshold within width constraints, display flat.
+    /// - If the flat length does not exceed the remaining space in this line, display flat.
     /// - Else, display broken.
     #[default]
     Normal,
     /// Forces this group to always display flat if and only if it contains no forced linebreaks.
-    /// 
+    ///
     /// In other words, this group always succeeds unless the child has:
-    /// - One or more `HardLinebreak` nodes.
-    /// - One or more inner groups with the `ForceBreak` policy where the inner child has influencable `Break` nodes.
+    /// - One or more [`Document::HardLinebreak`] nodes.
+    /// - One or more inner [`Document::Group`] with the [`GroupPolicy::ForceBreak`] policy
+    ///   where the inner child has influencable [`Document::Break`] nodes.
     ///
     /// This policy, when active, overrides the policy of enclosed group nodes,
     /// causing the entire notation within to be displayed flat.
     /// Applying this policy onto a group may cause otherwise-adherent groups to violate strict width constraints.
     FlatIfPossible,
-    /// Forces this group to always display broken. Children groups may display broken or inline.
+    /// Forces this group to always display broken. Inner groups may display broken or inline.
     /// This policy is infallible.
     ForceBreak,
 }
 
-/// A sequence containing a collection of children.
+/// A sequence containing an immutable collection of children.
 ///
-/// Invariants:
-/// - `children` must be immutable due to caching of overall break status.
+/// ## Why Is This Not [`Vec`]?
+///
+/// Wadler's algorithm relies on the calculation of the flat length of a [`Document`].
+///
+/// To prevent quadratic complexity during layout generation for this calculation,
+/// these values are cached upon construction for collections,
+/// leading to time complexity linear to the depth of the document tree.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Sequence<D> {
     children: Box<[D]>,
@@ -217,9 +235,11 @@ pub struct Sequence<D> {
     pub(crate) layout_mode_observable: bool,
 }
 impl<D> Sequence<D> {
+    /// Provides an immutable reference to the children collection.
     pub fn children(&self) -> &[D] {
         &self.children
     }
+    /// Consumes self, returning the inner children collection.
     pub fn into_children(self) -> Box<[D]> {
         self.children
     }
@@ -228,61 +248,69 @@ impl<'s, D, A> Sequence<D>
 where
     D: Deref<Target = Document<'s, D, A>>,
 {
+    /// Constructs a new sequence collection.
     pub fn new(children: Box<[D]>) -> Self {
         let status = children
             .iter()
             .fold(BreakStatus::FlatLength(0), |acc, child| {
                 acc + child.break_status()
             });
-        let layout_mode_observable = children.iter().any(|child| 
-            child.layout_mode_observable(GroupPolicy::Normal));
-        Sequence { children, status, layout_mode_observable }
+        let layout_mode_observable = children
+            .iter()
+            .any(|child| child.layout_mode_observable(GroupPolicy::Normal));
+        Sequence {
+            children,
+            status,
+            layout_mode_observable,
+        }
     }
 }
 
 /// The raw notation document format of a Wadler-style pretty printer.
 ///
 /// Parameterized over:
-/// - `'s`: the lifetime of owned or borrowed string fragments, which are of type `Cow<'s, str>`.
-/// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.
+/// - `'s`: the lifetime of owned or borrowed string fragments, which are of type [`Cow<'s, str>`].
+/// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.  
+///   `D` should implement [`Deref<Target = Document<..>>`].  
+///   Provided implementors include:
+///   - [`Doc`](super::Doc) for arena-backed allocation and construction, with sharing of leaf nodes.
+///   - [`OwnedDoc`](super::OwnedDoc) for directly-owned [`Box`]'ed values.
 /// - `A`: the type of annotations. Defaults to unit type `()`.
 ///
 /// Some of the variants use opaque datatypes with accessor functions to maintain internal invariants.
 /// Generally, a `Document` should be treated as immutable upon construction.
 /// Subsequent passes may read from the existing `Document` and generate a modified copy if desired.
-/// 
-/// ## Note on Canonical Representation
-/// 
-/// The builders exposed here do not inherently build canonical documents. There are many ways to express equivalent documents,
-/// and while a best-effort attempt is made to reduce or flatten equivalent forms, some transformations are not possible without
-/// global reconstruction of the document.
+///
+/// Do not construct this type directly.
 ///
 /// ## Note on Smart Constructors
 ///
 /// This document type provides smart constructors that perform local structural transformations.
-/// - An allocation closure of `impl FnMut(Self) -> D` is required.
-/// - The implementation in `Document` take children of type `D` for nodes with children.
-///   This may make direct usage inconvenient.
+/// - An allocation closure `alloc` of `FnMut(Self) -> D` is required.
+/// - The input and output types of these smart constructors are of type `D`.
 /// - Document builders and/or wrapper types are encouraged to shadow the smart constructors with morally-equivalent methods:
+///   <details>
+///   <summary><i> Click to expand </i></summary>
+///
 ///   ```ignore
 ///   /// The smart constructor for a nil node.
 ///   pub fn nil() -> Self;
 ///   /// The smart constructor for literal text.
-///   /// 
+///   ///
 ///   /// # Panics
-///   /// 
+///   ///
 ///   /// Panics if the payload contains tabs.
 ///   pub fn from_text(payload: impl Into<Cow<'s, str>>) -> Self;
 ///   /// The smart constructor for flat text fragments.
-///   /// 
+///   ///
 ///   /// # Panics
-///   /// 
+///   ///
 ///   /// Panics if the payload contains newline sequences or tabs.
 ///   pub fn flat_text(payload: impl Into<Cow<'s, str>>) -> Self;
 ///   /// The smart constructor for break nodes.
-///   /// 
+///   ///
 ///   /// # Panics
-///   /// 
+///   ///
 ///   /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
 ///   pub fn breaker(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Self;
 ///   /// The smart constructor for a hard linebreak
@@ -302,28 +330,44 @@ where
 ///   /// The smart constructor for annotations.
 ///   pub fn annotation(annotation: A, inner: Self) -> Self;
 ///   ```
+///
+///   </details>
+///
 ///   This would likely require defining and applying the `alloc` closure, which in some cases is just `Into::into`.
+///
+///
+/// ## Note on Canonical Representation
+///
+/// The builders exposed here do not inherently build canonical documents.
+///
+/// There are many ways to express equivalent documents,
+/// and while a best-effort attempt is made to reduce or flatten equivalent forms,
+/// some transformations are not possible without global reconstruction of the document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Document<'s, D, A = ()> {
-    /// A no-op node. This node displays as "", carries no meaning, and builders will attempt to eliminate it.
+    /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
     /// Text that *must* be displayed flat.
     Text(FlatFragment<'s>),
     /// A breaking node, which renders differently based on whether the current layout mode is flat or broken.
     /// Also used to express soft linebreaks.
+    ///
     /// Respects indentation added by enclosing `Nest` nodes;
     /// avoid using this at the end of a `Nest`.
     Break(Break<'s>),
-    /// A hard linebreak.
+    /// A hard linebreak, which must appear in the final rendering.
+    ///
     /// Respects indentation added by enclosing `Nest` nodes;
     /// avoid using this at the end of a `Nest`.
     HardLinebreak,
     /// A group, which introduces a layout decision point.
+    ///
     /// A group node will render based on its policy, the default being to render flat if possible and broken otherwise.
     Group(GroupPolicy, D),
     /// A sequence containing a collection of children.
     Sequence(Sequence<D>),
     /// A node that, if in broken layout mode, will add indentation to its child.
+    ///
     /// The additional indentation applies to subsequent newlines in `Break` nodes within its child;
     /// it will not affect the indentation or spacing of the current line.
     Nest(usize, D),
@@ -343,8 +387,9 @@ where
             Document::Break(inner) => BreakStatus::FlatLength(inner.flat().width),
             Document::HardLinebreak => BreakStatus::MustBreak,
             Document::Group(policy, child) => {
-                if matches!(policy, GroupPolicy::ForceBreak) 
-                && child.layout_mode_observable(GroupPolicy::ForceBreak) {
+                if matches!(policy, GroupPolicy::ForceBreak)
+                    && child.layout_mode_observable(GroupPolicy::ForceBreak)
+                {
                     BreakStatus::MustBreak
                 } else {
                     child.break_status()
@@ -359,14 +404,12 @@ where
     }
     /// Returns whether a layout mode change is observable on this node.
     /// Basically: whether a node contains influencable `Break` children.
-    /// 
+    ///
     /// This is used as a helper for `break_status()` along with determining whether a `FlatIfPossible` applies.
     pub(crate) fn layout_mode_observable(&self, policy: GroupPolicy) -> bool {
         match self {
             Document::Break(_) => true,
-            Document::Nil
-            | Document::Text(_)
-            | Document::HardLinebreak => false,
+            Document::Nil | Document::Text(_) | Document::HardLinebreak => false,
 
             // Since `Group` introduces an independent layout decision,
             // The current layout mode is not observable in the child,
@@ -375,19 +418,22 @@ where
             // but since this is called in `break_status()` without the override (using `Normal`),
             // it returns the right answers while exposing a canonization opportunity in `Group` smart construction.
             Document::Group(inner_policy, child) => {
-                if matches!((policy, inner_policy), (GroupPolicy::FlatIfPossible, GroupPolicy::Normal)) {
+                if matches!(
+                    (policy, inner_policy),
+                    (GroupPolicy::FlatIfPossible, GroupPolicy::Normal)
+                ) {
                     child.layout_mode_observable(GroupPolicy::FlatIfPossible)
                 } else {
                     false
                 }
-            },
+            }
 
-            Document::Nest(_, child)
-            | Document::Annotation(_, child) => child.layout_mode_observable(policy),
+            Document::Nest(_, child) | Document::Annotation(_, child) => {
+                child.layout_mode_observable(policy)
+            }
             Document::Sequence(sequence) => sequence.layout_mode_observable,
         }
     }
-
 
     /// Borrows the notation document to produce a layout engine, using default settings.
     pub fn as_layout<'a>(&'a self) -> LayoutEngine<'s, D, A>
@@ -407,7 +453,7 @@ where
     // Smart Construction Methods
 
     /// The 'smart' constructor for a nil node.
-    pub fn nil<F>(mut alloc : F) -> D 
+    pub fn nil<F>(mut alloc: F) -> D
     where
         F: FnMut(Self) -> D,
     {
@@ -418,7 +464,7 @@ where
     /// - `Nil` for nothing,
     /// - `Text` for flat text fragments,
     /// - `HardLinebreak` for newline sequences, or
-    /// - `Group` consisting of several `Text` and `HardLinebreak`.
+    /// - `Sequence` consisting of multiple of the above.
     pub fn from_text<F>(payload: impl Into<Cow<'s, str>>, mut alloc: F) -> Result<D, ContainsTab>
     where
         F: FnMut(Self) -> D,
@@ -448,7 +494,7 @@ where
     ///
     /// Fails if payload contains newline sequences.
     /// Shadowing methods may choose to `panic!()` instead for more ergonomic usage.
-    pub fn flat_text<F>(payload: impl Into<Cow<'s, str>>, mut alloc : F) -> Result<D, FragmentError>
+    pub fn flat_text<F>(payload: impl Into<Cow<'s, str>>, mut alloc: F) -> Result<D, FragmentError>
     where
         F: FnMut(Self) -> D,
     {
@@ -466,12 +512,12 @@ where
     /// Fails if:
     /// - Flat payload contains any newline sequences.
     /// - Broken payload does *not* contain any newline sequences.
-    /// 
+    ///
     /// Shadowing methods may choose to `panic!()` instead for more ergonomic usage.
     pub fn breaker<F>(
         flat: impl Into<Cow<'s, str>>,
         broken: impl Into<Cow<'s, str>>,
-        mut alloc : F,
+        mut alloc: F,
     ) -> Result<D, BreakNodeInvalid>
     where
         F: FnMut(Self) -> D,
@@ -479,7 +525,7 @@ where
         Break::new(flat, broken).map(|inner| alloc(Document::Break(inner)))
     }
     /// The 'smart' constructor for a hard linebreak.
-    pub fn hard_linebreak<F>(mut alloc : F) -> D
+    pub fn hard_linebreak<F>(mut alloc: F) -> D
     where
         F: FnMut(Self) -> D,
     {
@@ -487,7 +533,7 @@ where
     }
 
     /// The smart constructor for a group with the specified policy.
-    pub fn group<F>(child: D, policy: GroupPolicy, mut alloc : F) -> D
+    pub fn group<F>(child: D, policy: GroupPolicy, mut alloc: F) -> D
     where
         F: FnMut(Self) -> D,
     {
@@ -510,10 +556,11 @@ where
     /// The smart constructor for a collection sequence.
     /// Note that `Sequence` nodes do not automatically introduce layout decisions;
     /// use `Group` and its associated smart constructors.
-    /// 
+    ///
     /// - Eliminates `Nil` children, and if none remain returns `Nil` itself.
     /// - Prevents construction of `Sequence` nodes with exactly one child, returning it instead.
-    pub fn sequence<F>(children: Vec<D>, mut alloc: F) -> D where
+    pub fn sequence<F>(children: Vec<D>, mut alloc: F) -> D
+    where
         F: FnMut(Self) -> D,
     {
         let mut children = children
@@ -528,7 +575,9 @@ where
         } else if children.len() == 1 {
             children.pop().unwrap()
         } else {
-            alloc(Document::Sequence(Sequence::new(children.into_boxed_slice())))
+            alloc(Document::Sequence(Sequence::new(
+                children.into_boxed_slice(),
+            )))
         }
     }
     /// The smart constructor for a collection sequence, in which each child is interspersed with a separator.
@@ -583,7 +632,6 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -597,8 +645,9 @@ mod test {
     #[test]
     fn observable_override() {
         let data: OwnedDoc<()> = OwnedDoc::group(
-            OwnedDoc::breaker("somebody", "once\ntold\nme"), 
-            GroupPolicy::Normal);
+            OwnedDoc::breaker("somebody", "once\ntold\nme"),
+            GroupPolicy::Normal,
+        );
         assert!(data.layout_mode_observable(GroupPolicy::FlatIfPossible));
         assert_eq!(data.break_status(), BreakStatus::FlatLength(8));
     }

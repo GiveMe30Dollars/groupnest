@@ -1,21 +1,23 @@
+//! Definitions for render events, the [`Renderer`] trait and some implementors.
+
 use thiserror::Error;
 
-/// A data structure representing events to be consumed by a Renderer when streaming pretty printed text.
+/// A data structure representing events to be consumed by a [`Renderer`] when streaming pretty printed text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RenderEvent<'s, A = ()> {
-    /// Print the following text, as is. Includes its width.
+    /// Print the following text, as is. Includes its width as calculated via Unicode width conventions.
     /// This text fragment may not contain newline sequences.
     Text(usize, &'s str),
     /// Insert a newline character.
     Linebreak,
     /// Insert whitespace padding of the following character width.
     Padding(usize),
-    /// Marks the beginning of the scope of the following annotation. Follow stack semantics.
+    /// Marks the beginning of the scope of the following annotation. Follows stack semantics.
     PushAnnotation(A),
-    /// Marks the end of the scope of the most recent annotation. Follow stack semantics.
+    /// Marks the end of the scope of the most recent annotation. Follows stack semantics.
     PopAnnotation,
     /// A signalling error. Emitted in the following situations:
-    /// - After a complete line where a `Strict` width constraint is violated.
+    /// - After a complete line where a [`LayoutWidthConstraint::Strict`](crate::layout::LayoutWidthConstraint) width constraint is violated.
     Error(LayoutError),
 }
 
@@ -36,8 +38,7 @@ pub enum LayoutError {
 /// An iterator adaptor for mapping onto the annotation type of each item.
 ///
 /// This type is not intended to be used directly.
-/// The idiomatic usage would be to import `RenderAdaptorExt` and use method chaining.
-/// ```
+/// The idiomatic usage would be to use [`RenderAdaptorExt`] for method chaining.
 pub struct RenderAdaptor<'s, A, I, F>
 where
     I: Iterator<Item = RenderEvent<'s, A>>,
@@ -71,7 +72,7 @@ where
             }
             // Yes, we do need to deconstruct + reconstruct every variant
             // because `B` might have a different size from `A`.
-            // Most fields here are `Copy` anyways so it isn't too bad.
+            // Most fields here are [`Copy`] anyways so it isn't too bad.
             RenderEvent::Text(span, s) => RenderEvent::Text(span, s),
             RenderEvent::Linebreak => RenderEvent::Linebreak,
             RenderEvent::Padding(num) => RenderEvent::Padding(num),
@@ -81,14 +82,40 @@ where
     }
 }
 
-/// Extension trait for iterator chaining of `.map_annotation(f)` and `.strip_annotation()`.
+/// Extension trait for iterator chaining of `.map_annotation(f)` and `.strip_annotation()`,
+/// allowing conversion between different annotation types with similar or less expressive semantics.
 ///
 /// This trait is blanket-implemented for compatible iterators.
+///
+/// ```
+/// use groupnest::{RenderAdaptorExt, renderer::RenderEvent};
+///
+/// enum Formatting {
+///     Normal,
+///     Bold,
+/// }
+/// fn map_to_bold<'s>(layout: impl Iterator<Item = RenderEvent<'s, bool>>)
+/// -> impl Iterator<Item = RenderEvent<'s, Formatting>> {
+///     layout.map_annotation(|is_bold| if is_bold {Formatting::Bold} else {Formatting::Normal})
+/// }
+/// ```
+/// ```
+/// use groupnest::{RenderAdaptorExt, renderer::RenderEvent};
+///
+/// enum LargeComplicatedAnnotation {
+///     // ...
+/// }
+/// fn map_to_unit<'s, >(layout: impl Iterator<Item = RenderEvent<'s, LargeComplicatedAnnotation>>)
+/// -> impl Iterator<Item = RenderEvent<'s, ()>> {
+///     layout.strip_annotation()
+/// }
+///
+/// ```
 pub trait RenderAdaptorExt<'s, A>
 where
     Self: Iterator<Item = RenderEvent<'s, A>> + Sized,
 {
-    /// Given a closure, map annotations from self, leaving all other events intact.
+    /// Given a closure, `map` annotations from self, leaving all other events intact.
     fn map_annotation<'c, B, F>(self, closure: F) -> RenderAdaptor<'s, A, Self, F>
     where
         Self: 'c,
@@ -96,6 +123,7 @@ where
     {
         RenderAdaptor::new(self, closure)
     }
+    /// `map` annotations from self to the unit, leaving all other events intact.
     fn strip_annotation(self) -> RenderAdaptor<'s, A, Self, Box<dyn FnMut(A)>> {
         let strip: Box<dyn FnMut(A)> = Box::new(|_| ());
         RenderAdaptor::new(self, strip)
@@ -103,14 +131,15 @@ where
 }
 impl<'s, A, I> RenderAdaptorExt<'s, A> for I where I: Iterator<Item = RenderEvent<'s, A>> {}
 
-
 /// Trait describing renderers that receive render events to stream or store text of the formatted document.
-/// 
+///
 /// # Invariants
-/// 
-/// The render event stream supplied to a `Renderer` implementor must be synchronous and well-formed,
-/// usually from direct emission of `LayoutEngine` and/or after transformation of annotation type `A`.
-/// `Renderer` implementors are not obliged to handle malformed input.
+///
+/// The render event stream supplied to a [`Renderer`] implementor must be synchronous and well-formed,
+/// usually from direct emission of [`LayoutEngine`](crate::layout::LayoutEngine)
+/// and/or after transformation of annotation type `A`.
+///
+/// [`Renderer`] implementors are not obliged to handle malformed input.
 pub trait Renderer<A> {
     /// The type signalling a render error.
     type Error;
@@ -136,8 +165,8 @@ pub trait Renderer<A> {
 }
 
 /// The (typical) error type of rendering.
-/// 
-/// `Renderer` implementors may choose to implement alternate error representations.
+///
+/// [`Renderer`] implementors may choose to implement alternate error representations.
 #[derive(Debug, Error)]
 pub enum RenderError {
     #[error(transparent)]
@@ -146,23 +175,21 @@ pub enum RenderError {
     LayoutError(#[from] LayoutError),
 }
 
-/// A plaintext renderer.
+/// A plaintext renderer implementing the [`Renderer`] protocol.
 #[derive(Debug, Clone, Default)]
 pub struct PlaintextRenderer<W> {
     pub inner: W,
 }
 impl<W> PlaintextRenderer<W> {
     pub fn new(inner: W) -> Self {
-        Self {
-            inner,
-        }
+        Self { inner }
     }
     /// Renders the given stream into an initial default value of `W`, then returns that value.
-    /// 
-    /// ## Note on `String`
-    /// 
-    /// `String` does not implement `std::io::Write`, and hence is incompatible for this function.
-    /// Use `Self::render_to_string()` instead.
+    ///
+    /// ## Note on [`String`]
+    ///
+    /// `String` does not implement [`std::io::Write`], and hence is incompatible for this function.
+    /// Use [`Self::render_to_string()`] instead.
     pub fn render<'s, A>(
         iterator: impl Iterator<Item = RenderEvent<'s, A>>,
     ) -> Result<W, <Self as Renderer<A>>::Error>
@@ -176,6 +203,7 @@ impl<W> PlaintextRenderer<W> {
 }
 impl PlaintextRenderer<Vec<u8>> {
     /// Renders the given stream into the empty string, returning the result.
+    ///
     /// It is known that all render events express valid UTF-8 text, hence the `String` conversion is infallible.
     pub fn render_to_string<'s, A>(
         iterator: impl Iterator<Item = RenderEvent<'s, A>>,
@@ -188,7 +216,10 @@ impl PlaintextRenderer<Vec<u8>> {
 }
 
 /// Private implementation.
-impl<W> PlaintextRenderer<W> where W: std::io::Write {
+impl<W> PlaintextRenderer<W>
+where
+    W: std::io::Write,
+{
     /// Receives a render event, discarding the annotation payload.
     fn receive<'s, A>(&mut self, event: RenderEvent<'s, A>) -> Result<(), RenderError> {
         match event {
@@ -213,7 +244,10 @@ impl<W> PlaintextRenderer<W> where W: std::io::Write {
     }
 }
 
-impl<W> Renderer<()> for PlaintextRenderer<W> where W: std::io::Write {
+impl<W> Renderer<()> for PlaintextRenderer<W>
+where
+    W: std::io::Write,
+{
     type Error = RenderError;
     fn receive<'s>(&mut self, event: RenderEvent<'s, ()>) -> Result<(), Self::Error> {
         self.receive(event)
@@ -222,7 +256,10 @@ impl<W> Renderer<()> for PlaintextRenderer<W> where W: std::io::Write {
         self.finish()
     }
 }
-impl<'a, W> Renderer<&'a ()> for PlaintextRenderer<W> where W: std::io::Write {
+impl<'a, W> Renderer<&'a ()> for PlaintextRenderer<W>
+where
+    W: std::io::Write,
+{
     type Error = RenderError;
     fn receive<'s>(&mut self, event: RenderEvent<'s, &'a ()>) -> Result<(), Self::Error> {
         self.receive(event)
@@ -234,43 +271,45 @@ impl<'a, W> Renderer<&'a ()> for PlaintextRenderer<W> where W: std::io::Write {
 
 #[cfg(feature = "termcolor")]
 mod termcolor_renderer {
-    use termcolor::{
-        Color, ColorSpec, WriteColor,
-    };
     use crate::{
-        Renderer, renderer::{RenderError, RenderEvent},
+        Renderer,
+        renderer::{RenderError, RenderEvent},
     };
+    use termcolor::{self, Color, ColorSpec, WriteColor};
 
-    /// A patch to be applied to a `termcolor::ColorSpec` object.
-    /// Useful as an annotation type for a `Document` to be streamed to a `termcolor::WriteColor` implementor.
-    /// 
-    /// ## Usage with `termcolor::ColorSpec`
-    /// 
-    /// `termcolor::ColorSpec` is, by design, a total specification.
+    /// A patch to be applied to a [`termcolor::ColorSpec`] object.
+    /// Useful as an annotation type for a [`Document`](crate::document::Document)
+    /// to be streamed to a [`termcolor::WriteColor`] implementor.
+    ///
+    /// ## Usage with [`termcolor::ColorSpec`]
+    ///
+    /// [`termcolor::ColorSpec`] is, by design, a total specification.
     /// This simplifies streaming but is contrary to the intuition that formatting options are cumulative;
     /// a bold annotation followed by an italic annotation should cause enclosed text to be bold *and* italic.
-    /// 
-    /// Hence, this data type expresses cumulative semantics. You may consider these to be equivalent to the methods on `ColorSpec`.
-    /// 
+    ///
+    /// Hence, this data type expresses cumulative semantics.
+    /// You may consider these to be equivalent to the methods on [`ColorSpec`].
+    ///
     /// ## Note on Fields
-    /// 
-    /// All fields are `Option<T>`, where `T` corresponds to the equivalent payload in `termcolor::ColorSpec`.
+    ///
+    /// All fields are [`Option<T>`], where `T` corresponds to the equivalent payload in [`termcolor::ColorSpec`].
     /// `None` will leave a `ColorSpec` field unchanged,
     /// whereas `Some(value)` will override the existing field in the `ColorSpec` with `value`.
-    /// 
-    /// ## Note on `Default`
-    /// 
-    /// The default value for this type is a patch that does nothing; the identity patch that, 
-    /// when applied to a `ColorSpec`, returns it unchanged. This results in more ergonomic usage:
+    ///
+    /// ## Note on [`Default`]
+    ///
+    /// The default value for this type is a patch that does nothing; the identity patch that,
+    /// when applied to a [`ColorSpec`], returns it unchanged. This results in more ergonomic usage patterns:
     /// ```rust
-    /// use groupnest::termcolor_renderer::ColorPatch;
+    /// # use groupnest::termcolor_renderer::ColorPatch;
     /// let bold_patch = ColorPatch {
     ///     bold: Some(true),
     ///     ..Default::default()
     /// };
     /// ```
-    /// 
-    /// For the patch that is semantically equivalent to `ColorSpec::clear(&mut self)`, use `ColorPatch::clear_all()`.
+    ///
+    /// For the patch that is semantically equivalent to [`termcolor::ColorSpec::clear`],
+    /// use [`ColorPatch::clear_all()`].
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct ColorPatch {
         /// Foreground color.
@@ -293,15 +332,16 @@ mod termcolor_renderer {
         pub reset: Option<bool>,
     }
 
-    impl ColorPatch{
+    impl ColorPatch {
         /// Creates a default patch, which applies no changes.
         pub fn new() -> Self {
             Self::default()
         }
         /// Creates a patch that clears all `ColorSpec` fields to default values.
         /// ```rust
-        /// use groupnest::termcolor_renderer::ColorPatch;
-        /// use termcolor::ColorSpec;
+        /// # use groupnest::ColorPatch;
+        /// # use ::termcolor::ColorSpec;
+        ///
         /// /// This function will never panic.
         /// fn invariant(colorspec: ColorSpec) {
         ///     assert_eq!(ColorPatch::clear_all().apply_to(colorspec), ColorSpec::default())
@@ -321,7 +361,7 @@ mod termcolor_renderer {
             }
         }
 
-        /// Consumes self, applying it onto a `ColorSpec`.
+        /// Consumes self, applying it onto a [`ColorSpec`].
         pub fn apply_to(self, mut to_modify: ColorSpec) -> ColorSpec {
             // As `termcolor::ColorSpec` doesn't expose its internals...
             if let Some(inner) = self.fg_color {
@@ -358,33 +398,48 @@ mod termcolor_renderer {
         }
     }
 
-    /// A renderer that supports `termcolor` styling via `ColorPatch`.
+    /// A renderer that supports [`termcolor`] styling via [`Renderer<ColorPatch>`].
     #[derive(Debug, Clone, Default)]
     pub struct TermcolorRenderer<W> {
         pub inner: W,
         colorstack: Vec<ColorSpec>,
     }
-    impl<W> TermcolorRenderer<W> where W : WriteColor {
-        /// Creates a new TermcolorRenderer, setting the `inner` stream to use the default color specification.
-        /// 
-        /// Due to invoking `inner.reset()`, this function is fallible.
+    impl<W> TermcolorRenderer<W>
+    where
+        W: WriteColor,
+    {
+        /// Creates a new [`TermcolorRenderer`], setting the `inner` stream to use the default color specification.
+        ///
+        /// Due to invoking [`WriteColor::set_color`], this function is fallible.
         pub fn new(mut inner: W) -> Result<Self, std::io::Error> {
             let first = ColorSpec::default();
             inner.reset()?;
-            Ok(Self { inner, colorstack: vec![first] })
+            Ok(Self {
+                inner,
+                colorstack: vec![first],
+            })
         }
-        /// Creates a new TermcolorRenderer, setting the `inner` stream to use the given `ColorSpec` specification.
-        /// 
-        /// Due to invoking `inner.set_color(&spec)`, this function is fallible.
+        /// Creates a new [`TermcolorRenderer`], setting the `inner` stream to use the given `ColorSpec` specification.
+        ///
+        /// Due to invoking [`WriteColor::set_color`], this function is fallible.
         pub fn with_colorspec(mut inner: W, spec: ColorSpec) -> Result<Self, std::io::Error> {
             inner.set_color(&spec)?;
-            Ok(Self { inner, colorstack: vec![spec] })
+            Ok(Self {
+                inner,
+                colorstack: vec![spec],
+            })
         }
     }
 
-    impl<W> Renderer<ColorPatch> for TermcolorRenderer<W> where W : WriteColor {
+    impl<W> Renderer<ColorPatch> for TermcolorRenderer<W>
+    where
+        W: WriteColor,
+    {
         type Error = RenderError;
-        fn receive<'s>(&mut self, event: crate::renderer::RenderEvent<'s, ColorPatch>) -> Result<(), Self::Error> {
+        fn receive<'s>(
+            &mut self,
+            event: crate::renderer::RenderEvent<'s, ColorPatch>,
+        ) -> Result<(), Self::Error> {
             match event {
                 RenderEvent::Text(_, s) => {
                     self.inner.write_all(s.as_bytes())?;
@@ -402,10 +457,10 @@ mod termcolor_renderer {
                     let new_spec = patch.apply_to(enclosing_spec);
                     self.inner.set_color(&new_spec)?;
                     self.colorstack.push(new_spec);
-                },
+                }
                 RenderEvent::PopAnnotation => {
                     self.colorstack.pop();
-                },
+                }
                 RenderEvent::Error(e) => return Err(RenderError::LayoutError(e)),
             }
             Ok(())
