@@ -2,7 +2,7 @@ use std::{collections::VecDeque, ops::Deref};
 
 use crate::{
     document::{BreakStatus, Document, GroupPolicy, TextFragment},
-    render::{LayoutError, RenderEvent},
+    renderer::{LayoutError, RenderEvent},
 };
 
 /// The layout modes to be applied for notation nodes.
@@ -16,7 +16,7 @@ pub enum LayoutMode {
 
 /// The constraint mode of the width of a layout as used by `LayoutSettings`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WidthConstraint {
+pub enum LayoutWidthConstraint {
     /// The maximal width is treated as a best-effort soft constraint.
     /// No error is signalled if this width is exceeded and no breaking can occur.
     Relaxed,
@@ -36,7 +36,7 @@ pub struct LayoutSettings {
     /// The maximal width within a line in which groups can display flat.
     pub max_width: usize,
     /// The width constraint mode used.
-    pub width_constraint: WidthConstraint,
+    pub width_constraint: LayoutWidthConstraint,
     /// The initial layout mode used.
     pub initial_mode: LayoutMode,
 }
@@ -46,7 +46,7 @@ impl Default for LayoutSettings {
         LayoutSettings {
             min_width: 20,
             max_width: 100,
-            width_constraint: WidthConstraint::Relaxed,
+            width_constraint: LayoutWidthConstraint::Relaxed,
             initial_mode: LayoutMode::Flat,
         }
     }
@@ -75,6 +75,11 @@ where
 {
     /// FIFO queue of pending events, to be emitted. Annotations are borrowed.
     pending: VecDeque<RenderEvent<'s, &'s A>>,
+    /// Cached padding. These are batched and accumulated separately,
+    /// only released upon a subsequent `Text` event.
+    /// This means that `Padding` events in the `pending` field carry the semantic meaning of
+    /// "add to the `pending_padding` field"
+    pending_padding: usize,
     /// Internal layout state. This is analogous to a LIFO stack of call frames.
     state: Vec<LayoutFrame<'s, D, A>>,
     /// (line, col) cursor (zero-indexed) tracking the position of a cursor from emitted events.
@@ -102,19 +107,38 @@ where
                 document,
                 force_flat: false,
             })],
+            pending_padding: 0,
             cursor: (0, 0),
             settings,
         }
     }
 
     /// Emits the render event, updating the internal cursor as it does so.
-    /// May cause addition of pending events.
-    fn emit(&mut self, next: RenderEvent<'s, &'s A>) -> RenderEvent<'s, &'s A> {
+    /// - May cause addition of pending events.
+    /// - The returned event is not guaranteed to be the same event as the input,
+    ///   and may cause further calls to `self.next_event()`.
+    fn emit(&mut self, next: RenderEvent<'s, &'s A>) -> Option<RenderEvent<'s, &'s A>> {
         match &next {
-            RenderEvent::Text(span, _) | RenderEvent::Padding(span) => {
-                self.cursor.1 += *span;
+            RenderEvent::Text(span, _) => {
+                // `Padding` is only actualized here.
+                if self.pending_padding > 0 {
+                    let padding = self.pending_padding;
+                    self.pending_padding = 0;
+                    let padding_event: RenderEvent<'s, &'s A> = RenderEvent::Padding(padding);
+                    self.pending.push_front(next);
+                    self.cursor.1 += padding;
+                    return Some(padding_event);
+                } else {
+                    self.cursor.1 += *span;
+                }
+            }
+            RenderEvent::Padding(padding) => {
+                // For the `pending` event cache, this results in batching.
+                self.pending_padding += *padding;
+                return self.next_event();
             }
             RenderEvent::Linebreak => {
+                self.pending_padding = 0;
                 let line_width = self.cursor.1;
                 if line_width > self.settings.max_width {
                     self.pending
@@ -130,7 +154,8 @@ where
             RenderEvent::PushAnnotation(_) | RenderEvent::PopAnnotation => (),
             RenderEvent::Error(_) => (),
         }
-        next
+        // This is the default, and only `Padding` events may change this.
+        Some(next)
     }
 
     /// Determines for `GroupPolicy::Normal` whether this group should display flat or broken.
@@ -146,7 +171,7 @@ where
         }
 
         // Relaxed min-width checking.
-        if self.settings.width_constraint == WidthConstraint::Relaxed
+        if self.settings.width_constraint == LayoutWidthConstraint::Relaxed
             && matches!(status, BreakStatus::FlatLength(span) if span <= self.settings.min_width)
         {
             return LayoutMode::Flat;
@@ -165,10 +190,11 @@ where
     /// Computes the next render event by mutating internals.
     fn next_event(&mut self) -> Option<RenderEvent<'s, &'s A>> {
         if let Some(next) = self.pending.pop_front() {
-            return Some(self.emit(next));
+            return self.emit(next);
         }
         let frame = self.state.pop()?;
         let LayoutFrame::CallFrame(callframe) = frame else {
+            // This must be `LayoutFrame::Annotation` then.
             return Some(RenderEvent::PopAnnotation);
         };
         match callframe.document {
@@ -178,7 +204,7 @@ where
             }
             Document::Text(fragment) => {
                 let event = RenderEvent::Text(fragment.width, fragment.inner());
-                Some(self.emit(event))
+                self.emit(event)
             }
             Document::Break(breaker) => {
                 if callframe.mode == LayoutMode::Flat {
@@ -219,15 +245,16 @@ where
                             ..callframe
                         }));
                     }
-                    GroupPolicy::ForceFlat => {
+                    GroupPolicy::FlatIfPossible => {
+                        let child_can_flat = child.break_status() != BreakStatus::MustBreak;
                         self.state.push(LayoutFrame::CallFrame(CallFrame {
-                            mode: if child.break_status() != BreakStatus::MustBreak {
+                            mode: if child_can_flat {
                                 LayoutMode::Flat
                             } else {
                                 LayoutMode::Broken
                             },
                             document: child,
-                            force_flat: child.break_status() != BreakStatus::MustBreak,
+                            force_flat: child_can_flat,
                             ..callframe
                         }));
                     }
@@ -272,7 +299,7 @@ where
                     document: inner,
                     ..callframe
                 }));
-                Some(self.emit(RenderEvent::PushAnnotation(annotation)))
+                self.emit(RenderEvent::PushAnnotation(annotation))
             }
         }
     }

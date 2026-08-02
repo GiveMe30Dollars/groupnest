@@ -4,7 +4,7 @@ use derive_more::{From, Into};
 use typed_arena::Arena;
 
 use crate::document::{
-    Break, BreakNodeInvalid, ContainsLinebreak, Document, FlatFragment, GroupPolicy,
+    Break, Document, FlatFragment, GroupPolicy,
 };
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
@@ -74,7 +74,10 @@ where
     }
 }
 
-impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
+impl<'s, 'doc, A> DocBuilder<'s, 'doc, A>
+where
+
+{
     /// Create a new DocBuilder. The backing arena must remain live.
     /// Despite the type parameter `A` defaulting to `()` in `Doc` and `Document`,
     /// it must be specified here.
@@ -93,7 +96,7 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
 
     /// For internal usage: allocate and/or intern a document node into the arena.
     /// Hence, the `alloc` closure expected by `Document` is `|inner| self.alloc(inner)`.
-    fn alloc(&mut self, doc: Document<'s, Doc<'s, 'doc, A>, A>) -> Doc<'s, 'doc, A> {
+    fn alloc<'a>(&'a mut self, doc: Document<'s, Doc<'s, 'doc, A>, A>) -> Doc<'s, 'doc, A> {
         let is_leaf = LeafKey::try_from(&doc);
         // If this is a leaf node, try to find an interned copy, and return that instead.
         if let Ok(leaf_key) = &is_leaf
@@ -112,35 +115,47 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
 
     /// The smart constructor for a nil node.
     pub fn nil(&mut self) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::nil())
+        Document::nil(|doc| self.alloc(doc))
     }
     /// The smart constructor for literal text.
-    pub fn from_text(&mut self, payload: impl Into<Cow<'static, str>>) -> Doc<'s, 'doc, A> {
-        let document = Document::from_text(payload, |inner| self.alloc(inner));
-        self.alloc(document)
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if the payload contains tabs.
+    pub fn from_text(&mut self, payload: impl Into<Cow<'s, str>>) -> Doc<'s, 'doc, A> {
+        Document::from_text(payload, |inner| self.alloc(inner))
+            .map_err(|err| panic!("{err}")).unwrap()
     }
-    /// The smart constructor for a flat text fragment.
-    pub fn flat_text(
-        &mut self,
-        payload: impl Into<Cow<'static, str>>,
-    ) -> Result<Doc<'s, 'doc, A>, ContainsLinebreak> {
-        Document::flat_text(payload).map(|inner| self.alloc(inner))
+    
+    /// The smart constructor for flat text fragments.
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if the payload contains newline sequences or tabs.
+    pub fn flat_text(&mut self, payload: impl Into<Cow<'s, str>>) -> Doc<'s, 'doc, A> {
+        Document::flat_text(payload, |inner| self.alloc(inner))
+            .map_err(|err| panic!("{err}")).unwrap()
     }
-    /// The smart constructor for a break node.
+    /// The smart constructor for break nodes.
+    /// 
+    /// # Panics
+    /// 
+    /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
     pub fn breaker(
-        &mut self,
+        &mut self, 
         flat: impl Into<Cow<'s, str>>,
         broken: impl Into<Cow<'s, str>>,
-    ) -> Result<Doc<'s, 'doc, A>, BreakNodeInvalid> {
-        Document::breaker(flat, broken).map(|inner| self.alloc(inner))
+    ) -> Doc<'s, 'doc, A> {
+        Document::breaker(flat, broken, |inner| self.alloc(inner))
+            .map_err(|err| panic!("{err}")).unwrap()
     }
     /// The smart constructor for a hard linebreak.
     pub fn hard_linebreak(&mut self) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::hard_linebreak())
+        Document::hard_linebreak(|inner| self.alloc(inner))
     }
     /// The smart constructor for a group with the specified policy.
     pub fn group(&mut self, child: Doc<'s, 'doc, A>, policy: GroupPolicy) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::group(child, policy))
+        Document::group(child, policy, |inner| self.alloc(inner))
     }
     /// The smart constructor for a grouped sequence.
     pub fn grouped_sequence(
@@ -148,12 +163,11 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         children: Vec<Doc<'s, 'doc, A>>,
         policy: GroupPolicy,
     ) -> Doc<'s, 'doc, A> {
-        let document = Document::grouped_sequence(children, policy, |inner| self.alloc(inner));
-        self.alloc(document)
+        Document::grouped_sequence(children, policy, |inner| self.alloc(inner))
     }
     /// The smart constructor for a collection sequence.
     pub fn sequence(&mut self, children: Vec<Doc<'s, 'doc, A>>) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::sequence(children))
+        Document::sequence(children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a collection sequence with interspersion.
     pub fn sequence_intersperse_with(
@@ -164,14 +178,14 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
     where
         A: Clone,
     {
-        self.alloc(Document::sequence_intersperse_with(children, separator))
+        Document::sequence_intersperse_with(children, separator, |inner| self.alloc(inner))
     }
     /// The smart constructor for nesting.
     pub fn nest(&mut self, indentation: usize, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::nest(indentation, inner))
+        Document::nest(indentation, inner, |inner| self.alloc(inner))
     }
     /// The smart constructor for annotations.
     pub fn annotation(&mut self, annotation: A, inner: Doc<'s, 'doc, A>) -> Doc<'s, 'doc, A> {
-        self.alloc(Document::annotation(annotation, inner))
+        Document::annotation(annotation, inner, |inner| self.alloc(inner))
     }
 }

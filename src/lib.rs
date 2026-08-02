@@ -5,13 +5,23 @@ mod owned;
 
 pub mod layout;
 pub mod lines;
-pub mod render;
+pub mod renderer;
 
 pub use crate::{
     builder::{Doc, DocBuilder},
     document::GroupPolicy,
-    layout::{LayoutEngine, LayoutMode, LayoutSettings, WidthConstraint},
+    layout::{LayoutEngine, LayoutMode, LayoutSettings, LayoutWidthConstraint},
     owned::OwnedDoc,
-    render::{RenderAdaptorExt, Renderer},
+    renderer::{
+        RenderAdaptorExt, Renderer, RenderError, 
+        PlaintextRenderer
+    },
 };
 pub use typed_arena::{self, Arena};
+
+#[cfg(feature = "termcolor")]
+pub use termcolor;
+#[cfg(feature = "termcolor")]
+pub use crate::renderer::{
+    ColorPatch, TermcolorRenderer
+};

@@ -2,8 +2,8 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings, WidthConstraint,
-    render::PlaintextRenderer,
+    Arena, Doc, DocBuilder, GroupPolicy, LayoutMode, LayoutSettings, LayoutWidthConstraint,
+    renderer::PlaintextRenderer,
 };
 
 enum SExp {
@@ -13,22 +13,22 @@ enum SExp {
 impl SExp {
     fn to_doc<'a>(&'a self, builder: &mut DocBuilder<'static, 'a, ()>) -> Doc<'static, 'a, ()> {
         match self {
-            SExp::Atom(num) => builder.flat_text(format!("{num:?}")).unwrap(),
+            SExp::Atom(num) => builder.flat_text(format!("{num:?}")),
             SExp::List(sexps) => {
-                let child_separator = builder.breaker(" ", ",\n").unwrap();
+                let child_separator = builder.breaker(" ", "\n");
                 let children = sexps
                     .iter()
                     .map(|elem| elem.to_doc(builder))
                     .collect::<Vec<_>>();
                 let inner = builder.sequence_intersperse_with(children, child_separator);
 
-                let open_parens_separator = builder.breaker("", "\n").unwrap();
-                let close_parens_separator = builder.breaker("", ",\n").unwrap();
+                let open_parens_separator = builder.breaker("", "\n");
+                let close_parens_separator = builder.breaker("", "\n");
                 let inner_with_newline = builder.sequence(vec![open_parens_separator, inner]);
 
                 let nest = builder.nest(2, inner_with_newline);
-                let open_parens = builder.flat_text("(").unwrap();
-                let close_parens = builder.flat_text(")").unwrap();
+                let open_parens = builder.flat_text("(");
+                let close_parens = builder.flat_text(")");
                 builder.grouped_sequence(
                     vec![open_parens, nest, close_parens_separator, close_parens],
                     GroupPolicy::Normal,
@@ -64,19 +64,19 @@ fn cramped() {
     let layout = doc.as_layout_with(LayoutSettings {
         min_width: 0,
         max_width: 10,
-        width_constraint: WidthConstraint::Relaxed,
+        width_constraint: LayoutWidthConstraint::Relaxed,
         initial_mode: LayoutMode::Flat,
     });
     let result = PlaintextRenderer::render_to_string(layout).unwrap();
     expect![[r#"
         (
-          (1),
-          (2 3),
+          (1)
+          (2 3)
           (
-            4,
-            5,
-            6,
-          ),
+            4
+            5
+            6
+          )
         )"#]]
     .assert_eq(&result);
 }
