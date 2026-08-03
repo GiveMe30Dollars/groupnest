@@ -4,7 +4,7 @@ Yet another Wadler-style pretty printer, for fun and profit!
 
 ## Why Does This Exist?
 
-***One.*** I wanted this for internal use for my compiler project `hasklite`, and thought this would be a fun diversion.
+***One.*** I wanted this for internal use for my compiler project `hasklite` (a Haskell subset), and thought this would be a fun diversion.
 
 ***Two.*** Existing crates, while mature in their own right, were unsuited for my usage or just had minor inconveniences that irked me.
 
@@ -22,8 +22,10 @@ In particular:
 In contrast, this implementation:  
 1. Follows an alternate formulation by the Gleam language team, where:
     - Sequences are flattened boxed slices, reducing tree depth.
-    - Concatenation is not primitive, but can be done via nested `Sequence` nodes, which are equivalent.
+    - Concatenation is not primitive, but can be done via nested `Sequence` nodes.
+      Callers are encouraged to collect their children before document construction.
 2. Minimal node types.
+    - Eight document node types, with each having little to no overlap for semantics and operations.
     - `HardLinebreak`, which mandates a newline in the final output.
     - `Break`, augmented to support additional arbitrary text in its broken payload.
 3. Pattern-matchable documents, with most (but not all) of the contents inspectible and deconstructible.

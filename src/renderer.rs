@@ -3,11 +3,20 @@
 use thiserror::Error;
 
 /// A data structure representing events to be consumed by a [`Renderer`] when streaming pretty printed text.
+/// 
+/// # Note on Lifetime `'payload`
+/// 
+/// The lifetime `'payload` refers to the lifetime of the string reference that [`RenderEvent::Text`] holds.
+/// Because this typically points to a [`Document`](crate::document::Document) type,
+/// `'payload` is *not* `'s` but the lifetime of the document reference,
+/// denoted `'doc`, where `'doc : 's` necessarily holds by construction.
+/// 
+/// Implementors may shorten `'payload` to `'p`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum RenderEvent<'s, A = ()> {
+pub enum RenderEvent<'payload, A = ()> {
     /// Print the following text, as is. Includes its width as calculated via Unicode width conventions.
     /// This text fragment may not contain newline sequences.
-    Text(usize, &'s str),
+    Text(usize, &'payload str),
     /// Insert a newline character.
     Linebreak,
     /// Insert whitespace padding of the following character width.
@@ -39,16 +48,16 @@ pub enum LayoutError {
 ///
 /// This type is not intended to be used directly.
 /// The idiomatic usage would be to use [`RenderAdaptorExt`] for method chaining.
-pub struct RenderAdaptor<'s, A, I, F>
+pub struct RenderAdaptor<'p, A, I, F>
 where
-    I: Iterator<Item = RenderEvent<'s, A>>,
+    I: Iterator<Item = RenderEvent<'p, A>>,
 {
     iterator: I,
     closure: F,
 }
-impl<'s, A, I, F, B> RenderAdaptor<'s, A, I, F>
+impl<'p, A, I, F, B> RenderAdaptor<'p, A, I, F>
 where
-    I: Iterator<Item = RenderEvent<'s, A>>,
+    I: Iterator<Item = RenderEvent<'p, A>>,
     F: FnMut(A) -> B,
 {
     pub fn new<'c>(iterator: I, closure: F) -> Self
@@ -59,12 +68,12 @@ where
         Self { iterator, closure }
     }
 }
-impl<'s, A, I, F, B> Iterator for RenderAdaptor<'s, A, I, F>
+impl<'p, A, I, F, B> Iterator for RenderAdaptor<'p, A, I, F>
 where
-    I: Iterator<Item = RenderEvent<'s, A>>,
+    I: Iterator<Item = RenderEvent<'p, A>>,
     F: FnMut(A) -> B,
 {
-    type Item = RenderEvent<'s, B>;
+    type Item = RenderEvent<'p, B>;
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator.next().map(|event| match event {
             RenderEvent::PushAnnotation(annotation) => {
@@ -73,7 +82,7 @@ where
             // Yes, we do need to deconstruct + reconstruct every variant
             // because `B` might have a different size from `A`.
             // Most fields here are [`Copy`] anyways so it isn't too bad.
-            RenderEvent::Text(span, s) => RenderEvent::Text(span, s),
+            RenderEvent::Text(span, payload) => RenderEvent::Text(span, payload),
             RenderEvent::Linebreak => RenderEvent::Linebreak,
             RenderEvent::Padding(num) => RenderEvent::Padding(num),
             RenderEvent::PopAnnotation => RenderEvent::PopAnnotation,
@@ -94,8 +103,8 @@ where
 ///     Normal,
 ///     Bold,
 /// }
-/// fn map_to_bold<'s>(layout: impl Iterator<Item = RenderEvent<'s, bool>>)
-/// -> impl Iterator<Item = RenderEvent<'s, Formatting>> {
+/// fn map_to_bold<'p>(layout: impl Iterator<Item = RenderEvent<'p, bool>>)
+/// -> impl Iterator<Item = RenderEvent<'p, Formatting>> {
 ///     layout.map_annotation(|is_bold| if is_bold {Formatting::Bold} else {Formatting::Normal})
 /// }
 /// ```
@@ -105,18 +114,18 @@ where
 /// enum LargeComplicatedAnnotation {
 ///     // ...
 /// }
-/// fn map_to_unit<'s, >(layout: impl Iterator<Item = RenderEvent<'s, LargeComplicatedAnnotation>>)
-/// -> impl Iterator<Item = RenderEvent<'s, ()>> {
+/// fn map_to_unit<'p, >(layout: impl Iterator<Item = RenderEvent<'p, LargeComplicatedAnnotation>>)
+/// -> impl Iterator<Item = RenderEvent<'p, ()>> {
 ///     layout.strip_annotation()
 /// }
 ///
 /// ```
-pub trait RenderAdaptorExt<'s, A>
+pub trait RenderAdaptorExt<'p, A>
 where
-    Self: Iterator<Item = RenderEvent<'s, A>> + Sized,
+    Self: Iterator<Item = RenderEvent<'p, A>> + Sized,
 {
     /// Given a closure, `map` annotations from self, leaving all other events intact.
-    fn map_annotation<'c, B, F>(self, closure: F) -> RenderAdaptor<'s, A, Self, F>
+    fn map_annotation<'c, B, F>(self, closure: F) -> RenderAdaptor<'p, A, Self, F>
     where
         Self: 'c,
         F: FnMut(A) -> B + 'c,
@@ -124,12 +133,12 @@ where
         RenderAdaptor::new(self, closure)
     }
     /// `map` annotations from self to the unit, leaving all other events intact.
-    fn strip_annotation(self) -> RenderAdaptor<'s, A, Self, Box<dyn FnMut(A)>> {
+    fn strip_annotation(self) -> RenderAdaptor<'p, A, Self, Box<dyn FnMut(A)>> {
         let strip: Box<dyn FnMut(A)> = Box::new(|_| ());
         RenderAdaptor::new(self, strip)
     }
 }
-impl<'s, A, I> RenderAdaptorExt<'s, A> for I where I: Iterator<Item = RenderEvent<'s, A>> {}
+impl<'p, A, I> RenderAdaptorExt<'p, A> for I where I: Iterator<Item = RenderEvent<'p, A>> {}
 
 /// Trait describing renderers that receive render events to stream or store text of the formatted document.
 ///
@@ -145,7 +154,7 @@ pub trait Renderer<A> {
     type Error;
 
     /// Receives a render event.
-    fn receive<'s>(&mut self, event: RenderEvent<'s, A>) -> Result<(), Self::Error>;
+    fn receive<'p>(&mut self, event: RenderEvent<'p, A>) -> Result<(), Self::Error>;
     /// Signals the end of the event stream. Defaults to no-op.
     /// This may be used to flush buffers etc.
     fn finish(&mut self) -> Result<(), Self::Error> {
@@ -153,9 +162,9 @@ pub trait Renderer<A> {
     }
 
     /// Consumes a render event iterator.
-    fn consume<'s>(
+    fn consume<'p>(
         &mut self,
-        iterator: impl Iterator<Item = RenderEvent<'s, A>>,
+        iterator: impl Iterator<Item = RenderEvent<'p, A>>,
     ) -> Result<(), Self::Error> {
         for event in iterator {
             self.receive(event)?;
@@ -190,8 +199,8 @@ impl<W> PlaintextRenderer<W> {
     ///
     /// `String` does not implement [`std::io::Write`], and hence is incompatible for this function.
     /// Use [`Self::render_to_string()`] instead.
-    pub fn render<'s, A>(
-        iterator: impl Iterator<Item = RenderEvent<'s, A>>,
+    pub fn render<'p, A>(
+        iterator: impl Iterator<Item = RenderEvent<'p, A>>,
     ) -> Result<W, <Self as Renderer<A>>::Error>
     where
         Self: Default + Renderer<A>,
@@ -205,8 +214,8 @@ impl PlaintextRenderer<Vec<u8>> {
     /// Renders the given stream into the empty string, returning the result.
     ///
     /// It is known that all render events express valid UTF-8 text, hence the `String` conversion is infallible.
-    pub fn render_to_string<'s, A>(
-        iterator: impl Iterator<Item = RenderEvent<'s, A>>,
+    pub fn render_to_string<'p, A>(
+        iterator: impl Iterator<Item = RenderEvent<'p, A>>,
     ) -> Result<String, <Self as Renderer<A>>::Error>
     where
         Self: Renderer<A>,
@@ -221,10 +230,10 @@ where
     W: std::io::Write,
 {
     /// Receives a render event, discarding the annotation payload.
-    fn receive<'s, A>(&mut self, event: RenderEvent<'s, A>) -> Result<(), RenderError> {
+    fn receive<'p, A>(&mut self, event: RenderEvent<'p, A>) -> Result<(), RenderError> {
         match event {
-            RenderEvent::Text(_, s) => {
-                self.inner.write_all(s.as_bytes())?;
+            RenderEvent::Text(_, payload) => {
+                self.inner.write_all(payload.as_bytes())?;
             }
             RenderEvent::Linebreak => {
                 self.inner.write_all("\n".as_bytes())?;
@@ -249,7 +258,7 @@ where
     W: std::io::Write,
 {
     type Error = RenderError;
-    fn receive<'s>(&mut self, event: RenderEvent<'s, ()>) -> Result<(), Self::Error> {
+    fn receive<'p>(&mut self, event: RenderEvent<'p, ()>) -> Result<(), Self::Error> {
         self.receive(event)
     }
     fn finish(&mut self) -> Result<(), Self::Error> {
@@ -261,7 +270,7 @@ where
     W: std::io::Write,
 {
     type Error = RenderError;
-    fn receive<'s>(&mut self, event: RenderEvent<'s, &'a ()>) -> Result<(), Self::Error> {
+    fn receive<'p>(&mut self, event: RenderEvent<'p, &'a ()>) -> Result<(), Self::Error> {
         self.receive(event)
     }
     fn finish(&mut self) -> Result<(), Self::Error> {
@@ -436,13 +445,13 @@ mod termcolor_renderer {
         W: WriteColor,
     {
         type Error = RenderError;
-        fn receive<'s>(
+        fn receive<'p>(
             &mut self,
-            event: crate::renderer::RenderEvent<'s, ColorPatch>,
+            event: crate::renderer::RenderEvent<'p, ColorPatch>,
         ) -> Result<(), Self::Error> {
             match event {
-                RenderEvent::Text(_, s) => {
-                    self.inner.write_all(s.as_bytes())?;
+                RenderEvent::Text(_, payload) => {
+                    self.inner.write_all(payload.as_bytes())?;
                 }
                 RenderEvent::Linebreak => {
                     self.inner.write_all("\n".as_bytes())?;

@@ -10,6 +10,7 @@ use crate::{
 };
 
 /// The layout modes to be applied for notation nodes.
+/// Used internally within [`LayoutEngine`] as well as [`LayoutSettings`] configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LayoutMode {
     /// Display components flat.
@@ -18,15 +19,15 @@ pub enum LayoutMode {
     Broken,
 }
 
-/// The constraint mode of the width of a layout as used by `LayoutSettings`.
+/// The constraint mode of the width of a layout as used by [`LayoutSettings`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LayoutWidthConstraint {
     /// The maximal width is treated as a best-effort soft constraint.
     /// No error is signalled if this width is exceeded and no breaking can occur.
     Relaxed,
     /// The maximal width is treated as a hard constraint.
-    /// In the event this constraint is violated, a `RenderEvent::Error` is emitted at the end of line.
-    /// It is the responsibility of the receiving Renderer to handle any errors.
+    /// In the event this constraint is violated, a [`RenderEvent::Error`] is emitted at the **end** of the line.
+    /// It is the responsibility of the receiving [`Renderer`](crate::Renderer) to handle errors.
     Strict,
 }
 /// The layout settings for `LayoutEngine`.
@@ -56,18 +57,20 @@ impl Default for LayoutSettings {
     }
 }
 
-/// The layout frame internal to `LayoutEngine`.
-/// This is analagous to a call frame for a function call of `fn render(&document, indentation, mode)`.
+/// The layout frame internal to [`LayoutEngine`].
+/// This is analagous to a call frame for a function call of `fn render(&document, indentation, mode)`
+/// for the classical formulation of Wadler's layout algorithm.
 #[derive(Debug, Clone)]
-enum LayoutFrame<'s, D, A> {
+enum LayoutFrame<'s, 'doc, D, A> {
     Annotation,
-    CallFrame(CallFrame<'s, D, A>),
+    Nest(usize),
+    CallFrame(CallFrame<'s, 'doc, D, A>),
 }
 #[derive(Debug, Clone)]
-struct CallFrame<'s, D, A> {
+struct CallFrame<'s, 'doc, D, A> {
     pub indentation: usize,
     pub mode: LayoutMode,
-    pub document: &'s Document<'s, D, A>,
+    pub document: &'doc Document<'s, D, A>,
     pub force_flat: bool,
 }
 
@@ -75,39 +78,49 @@ struct CallFrame<'s, D, A> {
 ///
 /// Parameterized over:
 /// - `'s`: the lifetime of owned or borrowed string fragments, which are of type `Cow<'s, str>`.
+/// - `'doc`: the lifetime of the document. `'s` **must** outlive `'doc`, and this would be the case for well-formed documents.
 /// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.
 /// - `A`: the type of annotations. Defaults to unit type `()`.
+/// 
+/// # Note on [`Iterator::Item`]
+/// 
+/// Due to accessing the `'s`-valid string fragments *through* document references of lifetime `'doc`, and `'s : 'doc`,
+/// the item returned must be of the shorter lifetime, hence `'doc`.
+/// 
+/// Refer to [`Renderer`](crate::Renderer) "Note on Lifetime `'payload`" for more information.
 #[derive(Debug, Clone)]
-pub struct LayoutEngine<'s, D, A>
+pub struct LayoutEngine<'s, 'doc, D, A>
 where
     D: Deref<Target = Document<'s, D, A>>,
+    's: 'doc,
 {
     /// FIFO queue of pending events, to be emitted. Annotations are borrowed.
-    pending: VecDeque<RenderEvent<'s, &'s A>>,
+    pending: VecDeque<RenderEvent<'doc, &'doc A>>,
     /// Cached padding. These are batched and accumulated separately,
     /// only released upon a subsequent `Text` event.
-    /// This means that `Padding` events in the `pending` field carry the semantic meaning of
+    /// This means that [`RenderEvent::Padding`] events in the `pending` field carry the semantic meaning of
     /// "add to the `pending_padding` field"
     pending_padding: usize,
     /// Internal layout state. This is analogous to a LIFO stack of call frames.
-    state: Vec<LayoutFrame<'s, D, A>>,
+    state: Vec<LayoutFrame<'s, 'doc, D, A>>,
     /// (line, col) cursor (zero-indexed) tracking the position of a cursor from emitted events.
     cursor: (usize, usize),
     /// Layout settings.
     settings: LayoutSettings,
 }
 
-impl<'s, D, A> LayoutEngine<'s, D, A>
+impl<'s, 'doc, D, A> LayoutEngine<'s, 'doc, D, A>
 where
     D: Deref<Target = Document<'s, D, A>>,
+    's: 'doc,
 {
     /// Creates a document with the given document, using default layout settings.
-    pub fn new(document: &'s Document<'s, D, A>) -> Self {
+    pub fn new(document: &'doc Document<'s, D, A>) -> Self where Self : 'doc {
         let settings = LayoutSettings::default();
         Self::with_settings(document, settings)
     }
     /// Creates a document with the given document and layout settings.
-    pub fn with_settings(document: &'s Document<'s, D, A>, settings: LayoutSettings) -> Self {
+    pub fn with_settings(document: &'doc Document<'s, D, A>, settings: LayoutSettings) -> Self where Self : 'doc {
         Self {
             pending: VecDeque::new(),
             state: vec![LayoutFrame::CallFrame(CallFrame {
@@ -125,15 +138,16 @@ where
     /// Emits the render event, updating the internal cursor as it does so.
     /// - May cause addition of pending events.
     /// - The returned event is not guaranteed to be the same event as the input,
-    ///   and may cause further calls to `self.next_event()`.
-    fn emit(&mut self, next: RenderEvent<'s, &'s A>) -> Option<RenderEvent<'s, &'s A>> {
+    ///   and may cause further calls to [`LayoutEngine::next_event`].
+    /// - [`LayoutEngine`] is free to reorganize or omit [`RenderEvent::Padding`] to strip unecessary whitespace padding.
+    fn emit(&mut self, next: RenderEvent<'doc, &'doc A>) -> Option<RenderEvent<'doc, &'doc A>> {
         match &next {
             RenderEvent::Text(span, _) => {
                 // `Padding` is only actualized here.
                 if self.pending_padding > 0 {
                     let padding = self.pending_padding;
                     self.pending_padding = 0;
-                    let padding_event: RenderEvent<'s, &'s A> = RenderEvent::Padding(padding);
+                    let padding_event: RenderEvent<'s, &'doc A> = RenderEvent::Padding(padding);
                     self.pending.push_front(next);
                     self.cursor.1 += padding;
                     return Some(padding_event);
@@ -171,7 +185,7 @@ where
     fn determine_mode(
         &self,
         child: &Document<'s, D, A>,
-        callframe: &CallFrame<'s, D, A>,
+        callframe: &CallFrame<'s, 'doc, D, A>,
     ) -> LayoutMode {
         let status = child.break_status();
         if callframe.force_flat {
@@ -197,22 +211,33 @@ where
     }
 
     /// Computes the next render event by mutating internals.
-    fn next_event(&mut self) -> Option<RenderEvent<'s, &'s A>> {
+    fn next_event(&mut self) -> Option<RenderEvent<'doc, &'doc A>> {
         if let Some(next) = self.pending.pop_front() {
             return self.emit(next);
         }
         let frame = self.state.pop()?;
-        let LayoutFrame::CallFrame(callframe) = frame else {
-            // This must be `LayoutFrame::Annotation` then.
-            return Some(RenderEvent::PopAnnotation);
+        let callframe = match frame {
+            LayoutFrame::CallFrame(inner) => inner,
+            LayoutFrame::Annotation => {
+                return Some(RenderEvent::PopAnnotation);
+            }
+            LayoutFrame::Nest(dedent) => {
+                let next_event = self.next_event();
+                if let Some(RenderEvent::Padding(current)) = next_event {
+                    return Some(RenderEvent::Padding(current - dedent));
+                } else {
+                    return next_event;
+                }
+            }
         };
+
         match callframe.document {
             Document::Nil => {
                 // discard this frame, get next.
                 self.next_event()
             }
             Document::Text(fragment) => {
-                let event = RenderEvent::Text(fragment.width, fragment.inner());
+                let event: RenderEvent<'doc, &'doc A> = RenderEvent::Text(fragment.width, fragment.inner());
                 self.emit(event)
             }
             Document::Break(breaker) => {
@@ -289,16 +314,22 @@ where
                 self.next_event()
             }
 
-            Document::Nest(nest, inner) => {
+            Document::Nest(indent, inner) => {
+                self.state.push(LayoutFrame::Nest(*indent));
                 self.state.push(LayoutFrame::CallFrame(CallFrame {
                     document: inner,
                     indentation: if callframe.mode == LayoutMode::Broken {
-                        callframe.indentation + *nest
+                        callframe.indentation + *indent
                     } else {
                         callframe.indentation
                     },
                     ..callframe
                 }));
+                // If we are at the start of a newline (cursor at column 0 with pending padding)
+                // Add to pending padding.
+                if self.cursor.1 == 0 {
+                    self.pending_padding += *indent;
+                }
                 self.next_event()
             }
 
@@ -314,11 +345,11 @@ where
     }
 }
 
-impl<'s, D, A> Iterator for LayoutEngine<'s, D, A>
+impl<'s, 'doc, D, A> Iterator for LayoutEngine<'s, 'doc, D, A>
 where
     D: Deref<Target = Document<'s, D, A>>,
 {
-    type Item = RenderEvent<'s, &'s A>;
+    type Item = RenderEvent<'doc, &'doc A>;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_event()
     }

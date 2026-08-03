@@ -3,7 +3,9 @@ use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Deref};
 use derive_more::{From, Into};
 use typed_arena::Arena;
 
-use crate::document::{Break, Document, FlatFragment, GroupPolicy};
+use crate::document::{
+    Break, BreakNodeInvalid, ContainsTab, Document, FlatFragment, FragmentError, GroupPolicy,
+};
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
 ///
@@ -121,7 +123,13 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
             .map_err(|err| panic!("{err}"))
             .unwrap()
     }
-
+    /// The non-panicking smart constructor for literal text.
+    pub fn from_text_(
+        &mut self,
+        payload: impl Into<Cow<'s, str>>,
+    ) -> Result<Doc<'s, 'doc, A>, ContainsTab> {
+        Document::from_text(payload, |inner| self.alloc(inner))
+    }
     /// The smart constructor for flat text fragments.
     ///
     /// # Panics
@@ -131,6 +139,14 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         Document::flat_text(payload, |inner| self.alloc(inner))
             .map_err(|err| panic!("{err}"))
             .unwrap()
+    }
+
+    /// The non-panicking smart constructor for flat text fragments.
+    pub fn flat_text_(
+        &mut self,
+        payload: impl Into<Cow<'s, str>>,
+    ) -> Result<Doc<'s, 'doc, A>, FragmentError> {
+        Document::flat_text(payload, |inner| self.alloc(inner))
     }
     /// The smart constructor for break nodes.
     ///
@@ -145,6 +161,14 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         Document::breaker(flat, broken, |inner| self.alloc(inner))
             .map_err(|err| panic!("{err}"))
             .unwrap()
+    }
+    /// The non-panicking smart constructor for break nodes.
+    pub fn breaker_(
+        &mut self,
+        flat: impl Into<Cow<'s, str>>,
+        broken: impl Into<Cow<'s, str>>,
+    ) -> Result<Doc<'s, 'doc, A>, BreakNodeInvalid> {
+        Document::breaker(flat, broken, |inner| self.alloc(inner))
     }
     /// The smart constructor for a hard linebreak.
     pub fn hard_linebreak(&mut self) -> Doc<'s, 'doc, A> {

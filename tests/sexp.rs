@@ -4,7 +4,7 @@ use expect_test::expect;
 use groupnest::{
     Arena, Doc, DocBuilder, GroupPolicy,
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
-    renderer::PlaintextRenderer,
+    renderer::{PlaintextRenderer, RenderError},
 };
 
 enum SExp {
@@ -37,38 +37,44 @@ impl SExp {
             }
         }
     }
+
+    fn to_string(&self) -> Result<String, RenderError> {
+        let arena = Arena::new();
+        let doc = self.to_doc(&mut DocBuilder::new(&arena));
+        doc.to_plaintext()
+    }
+    fn to_string_with(&self, settings: LayoutSettings) -> Result<String, RenderError> {
+        let arena = Arena::new();
+        let doc = self.to_doc(&mut DocBuilder::new(&arena));
+        doc.to_plaintext_with(settings)
+    }
 }
 
 #[test]
 fn generate_doc() {
-    let template = SExp::List(vec![
+    let sexp = SExp::List(vec![
         SExp::List(vec![SExp::Atom(1)]),
         SExp::List(vec![SExp::Atom(2), SExp::Atom(3)]),
         SExp::List(vec![SExp::Atom(4), SExp::Atom(5), SExp::Atom(6)]),
     ]);
-    let arena = Arena::new();
-    let doc = template.to_doc(&mut DocBuilder::new(&arena));
-    let layout = doc.as_layout();
-    let result = PlaintextRenderer::render_to_string(layout).unwrap();
+    let result = sexp.to_string().unwrap();
     expect!["((1) (2 3) (4 5 6))"].assert_eq(&result);
 }
 
 #[test]
 fn cramped() {
-    let template = SExp::List(vec![
+    let sexp = SExp::List(vec![
         SExp::List(vec![SExp::Atom(1)]),
         SExp::List(vec![SExp::Atom(2), SExp::Atom(3)]),
         SExp::List(vec![SExp::Atom(4), SExp::Atom(5), SExp::Atom(6)]),
     ]);
-    let arena = Arena::new();
-    let doc = template.to_doc(&mut DocBuilder::new(&arena));
-    let layout = doc.as_layout_with(LayoutSettings {
+    const SETTINGS : LayoutSettings = LayoutSettings {
         min_width: 0,
         max_width: 10,
         width_constraint: LayoutWidthConstraint::Relaxed,
         initial_mode: LayoutMode::Flat,
-    });
-    let result = PlaintextRenderer::render_to_string(layout).unwrap();
+    };
+    let result = sexp.to_string_with(SETTINGS).unwrap();
     expect![[r#"
         (
           (1)
@@ -80,4 +86,19 @@ fn cramped() {
           )
         )"#]]
     .assert_eq(&result);
+}
+
+#[test]
+fn logical_newline() {
+    use groupnest::OwnedDoc;
+    let sexp = OwnedDoc::sequence(vec![
+        OwnedDoc::from_text("outer {\n"),
+        OwnedDoc::nest(4, OwnedDoc::from_text("inner\n")),
+        OwnedDoc::flat_text("}")
+    ]);
+    let result = PlaintextRenderer::render_to_string(sexp.as_layout()).unwrap();
+    expect![[r#"
+        outer {
+            inner
+        }"#]].assert_eq(&result);
 }

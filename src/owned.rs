@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::document::{Document, GroupPolicy};
+use crate::document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy};
 
 /// The notation document format, owning and heap-allocating all of its children and fragments.
 ///
@@ -41,10 +41,18 @@ impl<A> OwnedDoc<A> {
         Document::nil(Into::into)
     }
     /// The smart constructor for literal text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the payload contains tabs.
     pub fn from_text(payload: impl Into<Cow<'static, str>>) -> Self {
         Document::from_text(payload, Into::into)
             .map_err(|err| panic!("{err}"))
             .unwrap()
+    }
+    /// The non-panicking smart constructor for literal text.
+    pub fn from_text_(payload: impl Into<Cow<'static, str>>) -> Result<Self, ContainsTab> {
+        Document::from_text(payload, Into::into)
     }
     /// The smart constructor for literal text.
     ///
@@ -55,6 +63,10 @@ impl<A> OwnedDoc<A> {
         Document::flat_text(payload, Into::into)
             .map_err(|err| panic!("{err}"))
             .unwrap()
+    }
+    /// The non-panicking smart constructor for flat text fragments.
+    pub fn flat_text_(payload: impl Into<Cow<'static, str>>) -> Result<Self, FragmentError> {
+        Document::flat_text(payload, Into::into)
     }
     /// The smart constructor for break nodes.
     ///
@@ -68,6 +80,13 @@ impl<A> OwnedDoc<A> {
         Document::breaker(flat, broken, Into::into)
             .map_err(|err| panic!("{err}"))
             .unwrap()
+    }
+    /// The non-panicking smart constructor for break nodes.
+    pub fn breaker_(
+        flat: impl Into<Cow<'static, str>>,
+        broken: impl Into<Cow<'static, str>>,
+    ) -> Result<Self, BreakNodeInvalid> {
+        Document::breaker(flat, broken, Into::into)
     }
     /// The `smart` constructor for hard linebreaks.
     pub fn hard_linebreak() -> Self {

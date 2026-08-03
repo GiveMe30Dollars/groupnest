@@ -11,8 +11,7 @@ use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    layout::{LayoutEngine, LayoutSettings},
-    lines,
+    PlaintextRenderer, RenderAdaptorExt, layout::{LayoutEngine, LayoutSettings}, lines, renderer::RenderError
 };
 
 /// An flat text fragment.
@@ -301,18 +300,24 @@ where
 ///   ///
 ///   /// Panics if the payload contains tabs.
 ///   pub fn from_text(payload: impl Into<Cow<'s, str>>) -> Self;
+///   /// The non-panicking smart constructor for literal text.
+///   pub fn from_text_(payload: impl Into<Cow<'s, str>>) -> Result<Self, ContainsTab>;
 ///   /// The smart constructor for flat text fragments.
 ///   ///
 ///   /// # Panics
 ///   ///
 ///   /// Panics if the payload contains newline sequences or tabs.
 ///   pub fn flat_text(payload: impl Into<Cow<'s, str>>) -> Self;
+///   /// The non-panicking smart constructor for flat text fragments.
+///   pub fn flat_text_(payload: impl Into<Cow<'s, str>>) -> Result<Self, FragmentError>;
 ///   /// The smart constructor for break nodes.
 ///   ///
 ///   /// # Panics
 ///   ///
 ///   /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
 ///   pub fn breaker(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Self;
+///   /// The non-panicking smart constructor for break nodes.
+///   pub fn breaker_(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Result<Self, BreakNodeInvalid>;
 ///   /// The smart constructor for a hard linebreak
 ///   pub fn hard_linebreak() -> Self;
 ///
@@ -333,32 +338,31 @@ where
 ///
 ///   </details>
 ///
-///   This would likely require defining and applying the `alloc` closure, which in some cases is just `Into::into`.
+///   This would likely require defining and applying the `alloc` closure, which in some cases is just [`Into::into`].
 ///
 ///
 /// ## Note on Canonical Representation
 ///
 /// The builders exposed here do not inherently build canonical documents.
+/// In other words, [`Eq`] functions on documents for structural equivalence, *not* semantic equivalence.
 ///
 /// There are many ways to express equivalent documents,
 /// and while a best-effort attempt is made to reduce or flatten equivalent forms,
-/// some transformations are not possible without global reconstruction of the document.
+/// some transformations are not possible without global inspection and reconstruction of the document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
-    /// Text that *must* be displayed flat.
+    /// Text that *must* be displayed flat. Contains no newlines.
     Text(FlatFragment<'s>),
     /// A breaking node, which renders differently based on whether the current layout mode is flat or broken.
-    /// Also used to express soft linebreaks.
+    /// Also used to express soft linebreaks with the form `Break(flat = "", broken = "\n")`.
     ///
-    /// Respects indentation added by enclosing `Nest` nodes;
-    /// avoid using this at the end of a `Nest`.
+    /// Respects indentation added by enclosing `Nest` nodes.
     Break(Break<'s>),
     /// A hard linebreak, which must appear in the final rendering.
     ///
-    /// Respects indentation added by enclosing `Nest` nodes;
-    /// avoid using this at the end of a `Nest`.
+    /// Respects indentation added by enclosing `Nest` nodes.
     HardLinebreak,
     /// A group, which introduces a layout decision point.
     ///
@@ -368,10 +372,12 @@ pub enum Document<'s, D, A = ()> {
     Sequence(Sequence<D>),
     /// A node that, if in broken layout mode, will add indentation to its child.
     ///
-    /// The additional indentation applies to subsequent newlines in `Break` nodes within its child;
-    /// it will not affect the indentation or spacing of the current line.
+    /// The additional indentation applies only on "logical newlines";
+    /// the current line will be unaffected by entering or exiting of a `Nest` scope if it already contains non-padding text.
     Nest(usize, D),
-    /// An annotation. The layout engine assumes these do not affect layout choices,
+    /// An annotation.
+    /// 
+    /// The layout algorithm assumes that annotations do not affect layout decisions,
     /// and defers rendering choices to respective Renderer implementors.
     Annotation(Box<A>, D),
 }
@@ -436,18 +442,21 @@ where
     }
 
     /// Borrows the notation document to produce a layout engine, using default settings.
-    pub fn as_layout<'a>(&'a self) -> LayoutEngine<'s, D, A>
-    where
-        'a: 's,
-    {
+    pub fn as_layout<'doc>(&'doc self) -> LayoutEngine<'s, 'doc, D, A> {
         LayoutEngine::new(self)
     }
     /// Borrows the notation document to produce a layout engine with the specified settings.
-    pub fn as_layout_with<'a>(&'a self, settings: LayoutSettings) -> LayoutEngine<'s, D, A>
-    where
-        'a: 's,
-    {
+    pub fn as_layout_with<'doc>(&'doc self, settings: LayoutSettings) -> LayoutEngine<'s, 'doc, D, A> {
         LayoutEngine::with_settings(self, settings)
+    }
+
+    /// Borrows the notation document to produce a plaintext document, using default settings, with annotations stripped.
+    pub fn to_plaintext(&self) -> Result<String, RenderError> {
+        PlaintextRenderer::render_to_string(self.as_layout().strip_annotation())
+    }
+    /// Borrows the notation document to produce a plaintext document with the specified settings, with annotations stripped.
+    pub fn to_plaintext_with(&self, settings: LayoutSettings) -> Result<String, RenderError> {
+        PlaintextRenderer::render_to_string(self.as_layout_with(settings).strip_annotation())
     }
 
     // Smart Construction Methods
