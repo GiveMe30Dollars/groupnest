@@ -1,8 +1,6 @@
-# groupnest
-
 Yet another Wadler-style pretty printer, for fun and profit!
 
-### Quick Start
+## Quick Start
 
 > *Let’s pretty-print simple sexps!*
 >
@@ -30,6 +28,10 @@ We define a conversion to a [`Document`] type. For simplicity we'll export an [`
 
 ```rust
 use groupnest::{OwnedDoc, GroupPolicy};
+# pub enum SExp {
+#     Atom(u32),
+#     List(Vec<SExp>),
+# }
 
 impl SExp {
     pub fn to_doc(&self) -> OwnedDoc<'_, ()> {
@@ -58,6 +60,36 @@ impl SExp {
 Then, turning that into a `String` is as easy as a method call:
 
 ```rust
+# use groupnest::{OwnedDoc, GroupPolicy};
+# pub enum SExp {
+#     Atom(u32),
+#     List(Vec<SExp>),
+# }
+# 
+# impl SExp {
+#     pub fn to_doc(&self) -> OwnedDoc<'_, ()> {
+#         match self {
+#             SExp::Atom(num) => OwnedDoc::flat_text(num.to_string()),
+#             SExp::List(children) => {
+#                 let children_docs = children.iter()
+#                     .map(|child| child.to_doc())
+#                     .collect::<Vec<_>>();
+#                 OwnedDoc::grouped_sequence(vec![
+#                     OwnedDoc::flat_text("("),
+#                     OwnedDoc::nest(1, 
+#                         OwnedDoc::sequence_intersperse_with(
+#                             children_docs,
+#                             OwnedDoc::breaker(" ", "\n"),
+#                         )
+#                     ),
+#                     OwnedDoc::flat_text(")"),
+#                 ], GroupPolicy::Normal)
+#             }
+#         }
+#     }
+# }
+# 
+# fn main() {
     let example = SExp::List(vec![
         SExp::List(vec![SExp::Atom(1)]),
         SExp::List(vec![SExp::Atom(2), SExp::Atom(3)]),
@@ -68,11 +100,48 @@ Then, turning that into a `String` is as easy as a method call:
     
     use expect_test::expect;
     expect!["((1) (2 3) (4 5 6))"].assert_eq(&out);
+# }
 ```
 
 We can also test that nesting and grouping behaves as we expected, by configuring via `LayoutSettings`.
 
 ```rust
+# use groupnest::{OwnedDoc, GroupPolicy};
+# pub enum SExp {
+#     Atom(u32),
+#     List(Vec<SExp>),
+# }
+# 
+# impl SExp {
+#     pub fn to_doc(&self) -> OwnedDoc<'_, ()> {
+#         match self {
+#             SExp::Atom(num) => OwnedDoc::flat_text(num.to_string()),
+#             SExp::List(children) => {
+#                 let children_docs = children.iter()
+#                     .map(|child| child.to_doc())
+#                     .collect::<Vec<_>>();
+#                 OwnedDoc::grouped_sequence(vec![
+#                     OwnedDoc::flat_text("("),
+#                     OwnedDoc::nest(1, 
+#                         OwnedDoc::sequence_intersperse_with(
+#                             children_docs,
+#                             OwnedDoc::breaker(" ", "\n"),
+#                         )
+#                     ),
+#                     OwnedDoc::flat_text(")"),
+#                 ], GroupPolicy::Normal)
+#             }
+#         }
+#     }
+# }
+# 
+# fn main() {
+#     let example = SExp::List(vec![
+#         SExp::List(vec![SExp::Atom(1)]),
+#         SExp::List(vec![SExp::Atom(2), SExp::Atom(3)]),
+#         SExp::List(vec![SExp::Atom(4), SExp::Atom(5), SExp::Atom(6)]),
+#     ]);
+# 
     use groupnest::layout::LayoutSettings;
     let small_window_settings = LayoutSettings{
         min_width: 0,
@@ -89,9 +158,10 @@ We can also test that nesting and grouping behaves as we expected, by configurin
         ((1)
          (2 3)
          (4 5 6))"#].assert_eq(&cramped);
+# }
 ```
 
-### Why Does This Exist?
+## Why Does This Exist?
 
 ***One.*** I wanted this for internal use for my compiler project `hasklite` (a Haskell subset), and thought this would be a fun and quick project.
 
@@ -119,7 +189,7 @@ In contrast, this implementation:
 4. Hopefully better documentation.
 
 
-### Further Documentation
+## Further Documentation
 
 - For document construction, refer to the raw Wadler [`Document`] representation and its wrappers:
   - [`RefDoc`]: A document that takes immutable reference to its children and is arena-allocated.
@@ -134,7 +204,7 @@ In contrast, this implementation:
   - This crate natively supports plaintext rendering via [`PlaintextRenderer`] and convenience functions [`Document::to_plaintext`] and [`Document::to_plaintext_with`].
   - The optional feature flag `termcolor` enables [`termcolor`](https://docs.rs/termcolor/latest/termcolor/) support for annotations via [`ColorPatch`] and rendering via [`TermcolorRenderer`].
 
-### Alternatives
+## Alternatives
 
 There's quite a few! A non-exhaustive list of existing options:
 - [`pretty`](https://crates.io/crates/pretty): The classic. Basically the original Wadler algorithm verbatim.
@@ -142,7 +212,7 @@ There's quite a few! A non-exhaustive list of existing options:
 - [`pprint`](https://crates.io/crates/pprint): *In addition* to being a document constructor, also provides derivable pretty-printing for Rust datatypes. Basically a neater version of `Debug`, neat!
 - [`sparkly`](https://crates.io/crates/sparkly): Built-in terminal and ANSI coloring support.
 
-### Will This Be On [`crates.io`](https://crates.io/)?
+## Will This Be On [`crates.io`](https://crates.io/)?
 
 Maybe, probably not.
 

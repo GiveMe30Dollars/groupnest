@@ -2,7 +2,7 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, Doc, DocBuilder, GroupPolicy,
+    Arena, RefDoc, DocBuilder, GroupPolicy,
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
     renderer::{PlaintextRenderer, RenderError},
 };
@@ -12,7 +12,7 @@ enum SExp {
     List(Vec<SExp>),
 }
 impl SExp {
-    fn to_doc<'a>(&'a self, builder: &mut DocBuilder<'static, 'a, ()>) -> Doc<'static, 'a, ()> {
+    fn to_doc<'a>(&'a self, builder: &mut DocBuilder<'static, 'a, ()>) -> RefDoc<'static, 'a, ()> {
         match self {
             SExp::Atom(num) => builder.flat_text(format!("{num:?}")),
             SExp::List(sexps) => {
@@ -31,7 +31,12 @@ impl SExp {
                 let open_parens = builder.flat_text("(");
                 let close_parens = builder.flat_text(")");
                 builder.grouped_sequence(
-                    vec![open_parens, nest, close_parens_separator, close_parens],
+                    vec![
+                        open_parens,
+                        nest,
+                        close_parens_separator,
+                        close_parens
+                    ],
                     GroupPolicy::Normal,
                 )
             }
@@ -90,11 +95,12 @@ fn cramped() {
 
 #[test]
 fn logical_newline() {
-    use groupnest::OwnedDoc;
-    let sexp = OwnedDoc::sequence(vec![
-        OwnedDoc::from_text("outer {\n"),
-        OwnedDoc::nest(4, OwnedDoc::from_text("inner\n")),
-        OwnedDoc::flat_text("}")
+    let arena = Arena::new();
+    let builder = DocBuilder::new(&arena);
+    let sexp = builder.sequence(vec![
+        builder.from_text("outer {\n"),
+        builder.nest(4, builder.from_text("inner\n")),
+        builder.flat_text("}")
     ]);
     let result = PlaintextRenderer::render_to_string(sexp.as_layout()).unwrap();
     expect![[r#"

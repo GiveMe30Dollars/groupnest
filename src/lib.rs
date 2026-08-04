@@ -1,4 +1,7 @@
 //! [`Document`]: crate::document::Document
+//! [`RefDoc`]: crate::RefDoc
+//! [`OwnedDoc`]: crate::OwnedDoc
+//! [`DocBuilder`]: crate::DocBuilder
 //! [`Renderer`]: crate::renderer::Renderer
 //! [`LayoutEngine`]: crate::layout::LayoutEngine
 //! [`Document::as_layout`]: crate::document::Document::as_layout
@@ -7,7 +10,7 @@
 //! [`Document::to_plaintext_with`]: crate::document::Document::to_plaintext_with
 //! [`ColorPatch`]: crate::renderer::ColorPatch
 //! [`TermcolorRenderer`]: crate::renderer::TermcolorRenderer
-#![doc = include_str!("../README.md")]
+#![doc = include_str!("README.rustdoc.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod document;
@@ -20,7 +23,7 @@ pub mod lines;
 pub mod renderer;
 
 pub use crate::{
-    builder::{Doc, DocBuilder},
+    builder::{RefDoc, DocBuilder},
     document::GroupPolicy,
     owned::OwnedDoc,
     renderer::{PlaintextRenderer, RenderAdaptorExt, Renderer},

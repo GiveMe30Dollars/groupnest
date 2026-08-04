@@ -272,8 +272,8 @@ where
 /// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.  
 ///   `D` should implement [`Deref<Target = Document<..>>`].  
 ///   Provided implementors include:
-///   - [`Doc`](super::Doc) for arena-backed allocation and construction, with sharing of leaf nodes.
-///   - [`OwnedDoc`](super::OwnedDoc) for directly-owned [`Box`]'ed values.
+///   - [`RefDoc`](crate::RefDoc) for arena-backed allocation and construction, with sharing of leaf nodes.
+///   - [`OwnedDoc`](crate::OwnedDoc) for directly-owned [`Box`]'ed values.
 /// - `A`: the type of annotations. Defaults to unit type `()`.
 ///
 /// Some of the variants use opaque datatypes with accessor functions to maintain internal invariants.

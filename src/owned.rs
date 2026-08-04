@@ -12,30 +12,30 @@ use crate::document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, Gr
 /// Refer to [`Document`](crate::document::Document) for more information on smart constructors.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct OwnedDoc<A = ()>(pub Box<Document<'static, Self, A>>);
-impl<A> Deref for OwnedDoc<A> {
-    type Target = Document<'static, Self, A>;
+pub struct OwnedDoc<'s, A = ()>(pub Box<Document<'s, Self, A>>);
+impl<'s, A> Deref for OwnedDoc<'s, A> {
+    type Target = Document<'s, Self, A>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
-impl<A> DerefMut for OwnedDoc<A> {
+impl<'s, A> DerefMut for OwnedDoc<'s, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
-impl<A> From<Document<'static, OwnedDoc<A>, A>> for OwnedDoc<A> {
-    fn from(value: Document<'static, OwnedDoc<A>, A>) -> Self {
+impl<'s, A> From<Document<'s, OwnedDoc<'s, A>, A>> for OwnedDoc<'s, A> {
+    fn from(value: Document<'s, OwnedDoc<'s, A>, A>) -> Self {
         OwnedDoc(Box::new(value))
     }
 }
-impl<A> From<OwnedDoc<A>> for Document<'static, OwnedDoc<A>, A> {
-    fn from(val: OwnedDoc<A>) -> Self {
+impl<'s, A> From<OwnedDoc<'s, A>> for Document<'s, OwnedDoc<'s, A>, A> {
+    fn from(val: OwnedDoc<'s, A>) -> Self {
         *val.0
     }
 }
 
-impl<A> OwnedDoc<A> {
+impl<'s, A> OwnedDoc<'s, A> {
     /// The 'smart' constructor for nil nodes.
     pub fn nil() -> Self {
         Document::nil(Into::into)
@@ -45,13 +45,13 @@ impl<A> OwnedDoc<A> {
     /// # Panics
     ///
     /// Panics if the payload contains tabs.
-    pub fn from_text(payload: impl Into<Cow<'static, str>>) -> Self {
+    pub fn from_text(payload: impl Into<Cow<'s, str>>) -> Self {
         Document::from_text(payload, Into::into)
             .map_err(|err| panic!("{err}"))
             .unwrap()
     }
     /// The non-panicking smart constructor for literal text.
-    pub fn from_text_(payload: impl Into<Cow<'static, str>>) -> Result<Self, ContainsTab> {
+    pub fn from_text_(payload: impl Into<Cow<'s, str>>) -> Result<Self, ContainsTab> {
         Document::from_text(payload, Into::into)
     }
     /// The smart constructor for literal text.
@@ -59,13 +59,13 @@ impl<A> OwnedDoc<A> {
     /// # Panics
     ///
     /// Panics if the payload contains tabs.
-    pub fn flat_text(payload: impl Into<Cow<'static, str>>) -> Self {
+    pub fn flat_text(payload: impl Into<Cow<'s, str>>) -> Self {
         Document::flat_text(payload, Into::into)
             .map_err(|err| panic!("{err}"))
             .unwrap()
     }
     /// The non-panicking smart constructor for flat text fragments.
-    pub fn flat_text_(payload: impl Into<Cow<'static, str>>) -> Result<Self, FragmentError> {
+    pub fn flat_text_(payload: impl Into<Cow<'s, str>>) -> Result<Self, FragmentError> {
         Document::flat_text(payload, Into::into)
     }
     /// The smart constructor for break nodes.
@@ -74,8 +74,8 @@ impl<A> OwnedDoc<A> {
     ///
     /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
     pub fn breaker(
-        flat: impl Into<Cow<'static, str>>,
-        broken: impl Into<Cow<'static, str>>,
+        flat: impl Into<Cow<'s, str>>,
+        broken: impl Into<Cow<'s, str>>,
     ) -> Self {
         Document::breaker(flat, broken, Into::into)
             .map_err(|err| panic!("{err}"))
@@ -83,8 +83,8 @@ impl<A> OwnedDoc<A> {
     }
     /// The non-panicking smart constructor for break nodes.
     pub fn breaker_(
-        flat: impl Into<Cow<'static, str>>,
-        broken: impl Into<Cow<'static, str>>,
+        flat: impl Into<Cow<'s, str>>,
+        broken: impl Into<Cow<'s, str>>,
     ) -> Result<Self, BreakNodeInvalid> {
         Document::breaker(flat, broken, Into::into)
     }
