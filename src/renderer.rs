@@ -2,14 +2,15 @@
 
 use thiserror::Error;
 
-/// A data structure representing events to be consumed by a [`Renderer`] when streaming pretty printed text.
+/// A data structure representing rendering events, produced by a [`LayoutEngine`](crate::layout::LayoutEngine)
+/// and to be consumed by a [`Renderer`].
 /// 
 /// # Note on Lifetime `'payload`
 /// 
 /// The lifetime `'payload` refers to the lifetime of the string reference that [`RenderEvent::Text`] holds.
 /// Because this typically points to a [`Document`](crate::document::Document) type,
-/// `'payload` is *not* `'s` but the lifetime of the document reference,
-/// denoted `'doc`, where `'doc : 's` necessarily holds by construction.
+/// `'payload` is *not* `'s` but the lifetime of the document reference `'doc`,
+/// where `'doc : 's` necessarily holds by construction.
 /// 
 /// Implementors may shorten `'payload` to `'p`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -148,7 +149,7 @@ impl<'p, A, I> RenderAdaptorExt<'p, A> for I where I: Iterator<Item = RenderEven
 /// usually from direct emission of [`LayoutEngine`](crate::layout::LayoutEngine)
 /// and/or after transformation of annotation type `A`.
 ///
-/// [`Renderer`] implementors are not obliged to handle malformed input.
+/// [`Renderer`] implementors are not obliged to handle malformed input gracefully.
 pub trait Renderer<A> {
     /// The type signalling a render error.
     type Error;
@@ -286,13 +287,13 @@ mod termcolor_renderer {
     };
     use termcolor::{self, Color, ColorSpec, WriteColor};
 
-    /// A patch to be applied to a [`termcolor::ColorSpec`] object.
+    /// A patch to be applied to a [`termcolor::ColorSpec`](ColorSpec) object.
     /// Useful as an annotation type for a [`Document`](crate::document::Document)
-    /// to be streamed to a [`termcolor::WriteColor`] implementor.
+    /// to be streamed to a [`termcolor::WriteColor`](WriteColor) implementor.
     ///
-    /// ## Usage with [`termcolor::ColorSpec`]
+    /// ## Usage with [`termcolor::ColorSpec`](ColorSpec)
     ///
-    /// [`termcolor::ColorSpec`] is, by design, a total specification.
+    /// [`ColorSpec`] is, by design, a total specification.
     /// This simplifies streaming but is contrary to the intuition that formatting options are cumulative;
     /// a bold annotation followed by an italic annotation should cause enclosed text to be bold *and* italic.
     ///
@@ -301,8 +302,8 @@ mod termcolor_renderer {
     ///
     /// ## Note on Fields
     ///
-    /// All fields are [`Option<T>`], where `T` corresponds to the equivalent payload in [`termcolor::ColorSpec`].
-    /// `None` will leave a `ColorSpec` field unchanged,
+    /// All fields are [`Option<T>`], where `T` corresponds to the equivalent payload in [`ColorSpec`].
+    /// `None` will leave a [`ColorSpec`] field unchanged,
     /// whereas `Some(value)` will override the existing field in the `ColorSpec` with `value`.
     ///
     /// ## Note on [`Default`]

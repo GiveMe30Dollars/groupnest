@@ -1,5 +1,14 @@
 //! [`Document`]: crate::document::Document
+//! [`Renderer`]: crate::renderer::Renderer
+//! [`LayoutEngine`]: crate::layout::LayoutEngine
+//! [`Document::as_layout`]: crate::document::Document::as_layout
+//! [`Document::as_layout_with`]: crate::document::Document::as_layout_with
+//! [`Document::to_plaintext`]: crate::document::Document::to_plaintext
+//! [`Document::to_plaintext_with`]: crate::document::Document::to_plaintext_with
+//! [`ColorPatch`]: crate::renderer::ColorPatch
+//! [`TermcolorRenderer`]: crate::renderer::TermcolorRenderer
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod document;
 

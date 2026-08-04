@@ -17,3 +17,7 @@ unicode-width = "0.2.2"
 termcolor = ["dep:termcolor"]
 
 [lints.clippy]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

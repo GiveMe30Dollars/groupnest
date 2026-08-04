@@ -14,7 +14,7 @@ use crate::document::{
 /// ## Note on [`Document`](crate::document::Document) Smart Constructors
 ///
 /// Due to not owning its internals, this type cannot construct itself.
-/// It is the responsibility of `DocBuilder` and similar data structures to implement the `Document` smart constructors.
+/// It is the responsibility of [`DocBuilder`] and similar data structures to implement the [`Document`] smart constructors.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into)]
 pub struct Doc<'s, 'doc, A = ()>(pub &'doc Document<'s, Self, A>);
@@ -46,7 +46,7 @@ impl<'s, 'doc, A> TryFrom<&'doc Document<'s, Doc<'s, 'doc, A>, A>> for LeafKey<'
     }
 }
 
-/// The builder structure for `Doc`.
+/// The builder structure for [`Doc`].
 ///
 /// ## Note on [`Document`](crate::document::Document) Smart Constructors
 ///

@@ -378,7 +378,7 @@ pub enum Document<'s, D, A = ()> {
     /// An annotation.
     /// 
     /// The layout algorithm assumes that annotations do not affect layout decisions,
-    /// and defers rendering choices to respective Renderer implementors.
+    /// and defers rendering choices to respective [`Renderer`](crate::Renderer) implementors.
     Annotation(Box<A>, D),
 }
 impl<'s, D, A> Document<'s, D, A>
