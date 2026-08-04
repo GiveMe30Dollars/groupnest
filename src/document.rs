@@ -369,10 +369,13 @@ pub enum Document<'s, D, A = ()> {
     /// A group node will render based on its policy, the default being to render flat if possible and broken otherwise.
     Group(GroupPolicy, D),
     /// A sequence containing a collection of children.
+    /// 
+    /// This node by itself does *not* introduce a layout decision point. Refer to [`Document::Group`].
+    /// A common usage pattern is `Group(policy = _, Sequence(...))` for introducing a sequence with a decisioin point.
     Sequence(Sequence<D>),
     /// A node that, if in broken layout mode, will add indentation to its child.
     ///
-    /// The additional indentation applies only on "logical newlines";
+    /// The additional indentation applies only on logical newlines;
     /// the current line will be unaffected by entering or exiting of a `Nest` scope if it already contains non-padding text.
     Nest(usize, D),
     /// An annotation.

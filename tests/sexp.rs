@@ -12,45 +12,35 @@ enum SExp {
     List(Vec<SExp>),
 }
 impl SExp {
-    fn to_doc<'a>(&'a self, builder: &mut DocBuilder<'static, 'a, ()>) -> RefDoc<'static, 'a, ()> {
+    fn to_doc<'a>(&'a self, builder: &DocBuilder<'static, 'a, ()>) -> RefDoc<'static, 'a, ()> {
         match self {
             SExp::Atom(num) => builder.flat_text(format!("{num:?}")),
-            SExp::List(sexps) => {
-                let child_separator = builder.breaker(" ", "\n");
-                let children = sexps
-                    .iter()
-                    .map(|elem| elem.to_doc(builder))
+            SExp::List(children) => {
+                let children_docs = children.iter()
+                    .map(|child| child.to_doc(builder))
                     .collect::<Vec<_>>();
-                let inner = builder.sequence_intersperse_with(children, child_separator);
-
-                let open_parens_separator = builder.breaker("", "\n");
-                let close_parens_separator = builder.breaker("", "\n");
-                let inner_with_newline = builder.sequence(vec![open_parens_separator, inner]);
-
-                let nest = builder.nest(2, inner_with_newline);
-                let open_parens = builder.flat_text("(");
-                let close_parens = builder.flat_text(")");
-                builder.grouped_sequence(
-                    vec![
-                        open_parens,
-                        nest,
-                        close_parens_separator,
-                        close_parens
-                    ],
-                    GroupPolicy::Normal,
-                )
+                builder.grouped_sequence(vec![
+                    builder.flat_text("("),
+                    builder.nest(1,
+                        builder.sequence_intersperse_with(
+                            children_docs,
+                            builder.breaker(" ", "\n"),
+                        )
+                    ),
+                    builder.flat_text(")"),
+                ], GroupPolicy::Normal)
             }
         }
     }
 
     fn to_string(&self) -> Result<String, RenderError> {
         let arena = Arena::new();
-        let doc = self.to_doc(&mut DocBuilder::new(&arena));
+        let doc = self.to_doc(&DocBuilder::new(&arena));
         doc.to_plaintext()
     }
     fn to_string_with(&self, settings: LayoutSettings) -> Result<String, RenderError> {
         let arena = Arena::new();
-        let doc = self.to_doc(&mut DocBuilder::new(&arena));
+        let doc = self.to_doc(&DocBuilder::new(&arena));
         doc.to_plaintext_with(settings)
     }
 }
@@ -81,28 +71,23 @@ fn cramped() {
     };
     let result = sexp.to_string_with(SETTINGS).unwrap();
     expect![[r#"
-        (
-          (1)
-          (2 3)
-          (
-            4
-            5
-            6
-          )
-        )"#]]
+        ((1)
+         (2 3)
+         (4 5 6))"#]]
     .assert_eq(&result);
 }
 
 #[test]
 fn logical_newline() {
     let arena = Arena::new();
-    let builder = DocBuilder::new(&arena);
-    let sexp = builder.sequence(vec![
+    let builder: DocBuilder<'_, '_, ()> = DocBuilder::new(&arena);
+    let doc = builder.group(builder.sequence(vec![
         builder.from_text("outer {\n"),
         builder.nest(4, builder.from_text("inner\n")),
         builder.flat_text("}")
-    ]);
-    let result = PlaintextRenderer::render_to_string(sexp.as_layout()).unwrap();
+    ]), GroupPolicy::ForceBreak);
+
+    let result = doc.to_plaintext().unwrap();
     expect![[r#"
         outer {
             inner

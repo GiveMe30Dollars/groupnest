@@ -315,20 +315,24 @@ where
             }
 
             Document::Nest(indent, inner) => {
-                self.state.push(LayoutFrame::Nest(*indent));
-                self.state.push(LayoutFrame::CallFrame(CallFrame {
-                    document: inner,
-                    indentation: if callframe.mode == LayoutMode::Broken {
-                        callframe.indentation + *indent
-                    } else {
-                        callframe.indentation
-                    },
-                    ..callframe
-                }));
-                // If we are at the start of a newline (cursor at column 0 with pending padding)
-                // Add to pending padding.
-                if self.cursor.1 == 0 {
-                    self.pending_padding += *indent;
+                if callframe.mode == LayoutMode::Broken {
+                    self.state.push(LayoutFrame::Nest(*indent));
+                    self.state.push(LayoutFrame::CallFrame(CallFrame {
+                        document: inner,
+                        indentation: callframe.indentation + *indent,
+                        ..callframe
+                    }));
+                    // If we are at the start of a newline (cursor at column 0 with pending padding)
+                    // Add to pending padding.
+                    if self.cursor.1 == 0 {
+                        self.pending_padding += *indent;
+                    }
+                } else {
+                    // Do not add any indentation.
+                    self.state.push(LayoutFrame::CallFrame(CallFrame {
+                        document: inner,
+                        ..callframe
+                    }));
                 }
                 self.next_event()
             }
