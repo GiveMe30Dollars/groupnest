@@ -1,7 +1,10 @@
 //! [`Document`]: crate::document::Document
 //! [`RefDoc`]: crate::RefDoc
-//! [`OwnedDoc`]: crate::OwnedDoc
-//! [`DocBuilder`]: crate::DocBuilder
+//! [`RefDocBuilder`]: crate::RefDocBuilder
+//! [`BoxDoc`]: crate::BoxDoc
+//! [`Arc`]: std::sync::Arc
+//! [`ArcDoc`]: crate::ArcDoc
+//! [`ArcDocBuilder`]: crate::ArcDocBuilder
 //! [`Renderer`]: crate::renderer::Renderer
 //! [`LayoutEngine`]: crate::layout::LayoutEngine
 //! [`Document::as_layout`]: crate::document::Document::as_layout
@@ -15,17 +18,19 @@
 
 pub mod document;
 
-mod builder;
-mod owned;
+mod handle;
 
 pub mod layout;
 pub mod lines;
 pub mod renderer;
 
 pub use crate::{
-    builder::{RefDoc, DocBuilder},
     document::GroupPolicy,
-    owned::OwnedDoc,
+    handle::{
+        boxdoc::{BoxDoc},
+        refdoc::{RefDoc, RefDocBuilder},
+        arcdoc::{ArcDoc, ArcDocBuilder},
+    },
     renderer::{PlaintextRenderer, RenderAdaptorExt, Renderer},
 };
 pub use typed_arena::{self, Arena};

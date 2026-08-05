@@ -1,11 +1,11 @@
 use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Deref, sync::Mutex};
 
-use derive_more::{From, Into};
+use derive_more::{AsRef, From, Into};
 use typed_arena::Arena;
 
-use crate::document::{
+use crate::{handle::common::LeafKey, document::{
     Break, BreakNodeInvalid, ContainsTab, Document, FlatFragment, FragmentError, GroupPolicy,
-};
+}};
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
 ///
@@ -14,9 +14,9 @@ use crate::document::{
 /// ## Note on [`Document`](crate::document::Document) Smart Constructors
 ///
 /// Due to not owning its internals, this type cannot construct itself.
-/// It is the responsibility of [`DocBuilder`] and similar data structures to implement the [`Document`] smart constructors.
+/// It is the responsibility of [`RefDocBuilder`] and similar data structures to implement the [`Document`] smart constructors.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into, AsRef)]
 pub struct RefDoc<'s, 'doc, A = ()>(pub &'doc Document<'s, Self, A>);
 impl<'s, 'doc, A> Deref for RefDoc<'s, 'doc, A> {
     type Target = Document<'s, Self, A>;
@@ -25,37 +25,17 @@ impl<'s, 'doc, A> Deref for RefDoc<'s, 'doc, A> {
     }
 }
 
-/// The interning key for leaf nodes of a `Doc`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum LeafKey<'s> {
-    Nil,
-    Text(FlatFragment<'s>),
-    Break(Break<'s>),
-    HardLinebreak,
-}
-impl<'s, 'doc, A> TryFrom<&'doc Document<'s, RefDoc<'s, 'doc, A>, A>> for LeafKey<'s> {
-    type Error = ();
-    fn try_from(value: &'doc Document<'s, RefDoc<'s, 'doc, A>, A>) -> Result<Self, Self::Error> {
-        match value {
-            Document::Nil => Ok(LeafKey::Nil),
-            Document::Text(inner) => Ok(LeafKey::Text(inner.clone())),
-            Document::Break(inner) => Ok(LeafKey::Break(inner.clone())),
-            Document::HardLinebreak => Ok(LeafKey::HardLinebreak),
-            _ => Err(()),
-        }
-    }
-}
-
 /// The builder structure for [`RefDoc`].
 ///
-/// ## Note on [`Document`](crate::document::Document) Smart Constructors
+/// ## Note on [`Document`](crate::document::Document) Smart Constructors (ie. Why `&self`?)
 ///
 /// Due to interning and arena allocation, a `&self` parameter is taken for all smart constructors.
-pub struct DocBuilder<'s, 'doc, A> {
+/// See [`Self::alloc`] for more information.
+pub struct RefDocBuilder<'s, 'doc, A> {
     arena: &'doc Arena<Document<'s, RefDoc<'s, 'doc, A>, A>>,
     intern: Mutex<HashMap<LeafKey<'s>, &'doc Document<'s, RefDoc<'s, 'doc, A>, A>>>,
 }
-impl<'s, 'doc, A> Debug for DocBuilder<'s, 'doc, A>
+impl<'s, 'doc, A> Debug for RefDocBuilder<'s, 'doc, A>
 where
     A: Debug,
 {
@@ -68,15 +48,15 @@ where
     }
 }
 
-impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
-    /// Create a new DocBuilder. The backing arena must remain live.
+impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
+    /// Create a new [`RefDocBuilder`]. The backing arena must remain live.
     /// Despite the type parameter `A` defaulting to `()` in `Doc` and `Document`,
     /// it must be specified here.
     /// If you intend to consume the document in the same scope as the builder and arena:
     /// ```
-    /// use groupnest::{Arena, DocBuilder};
+    /// use groupnest::{Arena, RefDocBuilder};
     /// let arena = Arena::new();
-    /// let builder: DocBuilder<'_, '_, ()> = DocBuilder::new(&arena);
+    /// let builder: RefDocBuilder<'_, '_, ()> = RefDocBuilder::new(&arena);
     /// ```
     pub fn new(arena: &'doc Arena<Document<'s, RefDoc<'s, 'doc, A>, A>>) -> Self {
         Self {
@@ -85,9 +65,37 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
         }
     }
 
-    /// For internal usage: allocate and/or intern a document node into the arena.
+    /// Allocates and/or interns a document node into the held arena.
     /// Hence, the `alloc` closure expected by `Document` is `|inner| self.alloc(inner)`.
-    fn alloc<'a>(&'a self, doc: Document<'s, RefDoc<'s, 'doc, A>, A>) -> RefDoc<'s, 'doc, A> {
+    /// 
+    /// This is used internally for all smart construction, and is not intended to be used directly.
+    /// 
+    /// ## Why `&self`?
+    /// 
+    /// In short: more ergonomic expression-based usage.
+    /// 
+    /// ```
+    /// use groupnest::{Arena, RefDocBuilder, GroupPolicy};
+    /// let arena = Arena::new();
+    /// let builder: RefDocBuilder<'_, '_, ()> = RefDocBuilder::new(&arena);
+    /// 
+    /// // This is possible with immutable reference, but not mutable reference:
+    /// let example = builder.group(
+    ///     builder.sequence(vec![
+    ///         builder.flat_text("Some text here..."),
+    ///         builder.flat_text("... and end."),
+    ///     ]),
+    ///     GroupPolicy::Normal
+    /// );
+    /// ```
+    /// 
+    /// Each invokation of the smart constructors above would need to be bound to individual statements
+    /// if `builder` is taken via mutable reference.
+    /// 
+    /// In practice, [`typed_arena::Arena`] already observes interior mutability by allocating via `&self`,
+    /// so the only change this necessitates is gating the interning map behind a synchronization lock.
+    /// As Rust has specified execution order, these operations occur in the order you expect them to.
+    pub fn alloc(&self, doc: Document<'s, RefDoc<'s, 'doc, A>, A>) -> RefDoc<'s, 'doc, A> {
         let is_leaf = LeafKey::try_from(&doc);
         // If this is a leaf node, try to find an interned copy, and return that instead.
         if let Ok(leaf_key) = &is_leaf
@@ -136,7 +144,6 @@ impl<'s, 'doc, A> DocBuilder<'s, 'doc, A> {
             .map_err(|err| panic!("{err}"))
             .unwrap()
     }
-
     /// The non-panicking smart constructor for flat text fragments.
     pub fn flat_text_(
         &self,

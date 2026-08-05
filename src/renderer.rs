@@ -14,6 +14,7 @@ use thiserror::Error;
 /// 
 /// Implementors may shorten `'payload` to `'p`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RenderEvent<'payload, A = ()> {
     /// Print the following text, as is. Includes its width as calculated via Unicode width conventions.
     /// This text fragment may not contain newline sequences.
@@ -33,6 +34,7 @@ pub enum RenderEvent<'payload, A = ()> {
 
 /// Errors resulting from layout rendering.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayoutError {
     #[error(
         "Line {line_num} has a width of {line_width} characters, exceeding the maximum width {max_width}"
@@ -151,6 +153,8 @@ impl<'p, A, I> RenderAdaptorExt<'p, A> for I where I: Iterator<Item = RenderEven
 ///
 /// [`Renderer`] implementors are not obliged to handle malformed input gracefully.
 pub trait Renderer<A> {
+    /// The type signalling the end-of-rendering.
+    type Finish;
     /// The type signalling a render error.
     type Error;
 
@@ -158,15 +162,13 @@ pub trait Renderer<A> {
     fn receive<'p>(&mut self, event: RenderEvent<'p, A>) -> Result<(), Self::Error>;
     /// Signals the end of the event stream. Defaults to no-op.
     /// This may be used to flush buffers etc.
-    fn finish(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
+    fn finish(&mut self) -> Result<Self::Finish, Self::Error>;
 
     /// Consumes a render event iterator.
     fn consume<'p>(
         &mut self,
         iterator: impl Iterator<Item = RenderEvent<'p, A>>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<Self::Finish, Self::Error> {
         for event in iterator {
             self.receive(event)?;
         }
@@ -180,13 +182,16 @@ pub trait Renderer<A> {
 #[derive(Debug, Error)]
 pub enum RenderError {
     #[error(transparent)]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
     #[error(transparent)]
     LayoutError(#[from] LayoutError),
 }
 
 /// A plaintext renderer implementing the [`Renderer`] protocol.
+/// 
+/// Layout errors are eagerly reported. It is assumed the underlyinng buffer does not have a width constraint.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct PlaintextRenderer<W> {
     pub inner: W,
 }
@@ -250,7 +255,8 @@ where
     }
     /// Finishes a render event stream by flushing self.
     fn finish(&mut self) -> Result<(), RenderError> {
-        Ok(self.inner.flush()?)
+        self.inner.flush()?;
+        Ok(())
     }
 }
 
@@ -258,11 +264,12 @@ impl<W> Renderer<()> for PlaintextRenderer<W>
 where
     W: std::io::Write,
 {
+    type Finish = ();
     type Error = RenderError;
     fn receive<'p>(&mut self, event: RenderEvent<'p, ()>) -> Result<(), Self::Error> {
         self.receive(event)
     }
-    fn finish(&mut self) -> Result<(), Self::Error> {
+    fn finish(&mut self) -> Result<Self::Finish, Self::Error> {
         self.finish()
     }
 }
@@ -270,11 +277,12 @@ impl<'a, W> Renderer<&'a ()> for PlaintextRenderer<W>
 where
     W: std::io::Write,
 {
+    type Finish = ();
     type Error = RenderError;
     fn receive<'p>(&mut self, event: RenderEvent<'p, &'a ()>) -> Result<(), Self::Error> {
         self.receive(event)
     }
-    fn finish(&mut self) -> Result<(), Self::Error> {
+    fn finish(&mut self) -> Result<Self::Finish, Self::Error> {
         self.finish()
     }
 }
@@ -320,6 +328,11 @@ mod termcolor_renderer {
     ///
     /// For the patch that is semantically equivalent to [`termcolor::ColorSpec::clear`],
     /// use [`ColorPatch::clear_all()`].
+    /// 
+    /// ## Note on [`serde`] Support
+    /// 
+    /// Due to containing [`termcolor::Color`], which does not support `serde` serialization and deserialization,
+    /// this type does not implement `serde` support.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct ColorPatch {
         /// Foreground color.
@@ -409,7 +422,10 @@ mod termcolor_renderer {
     }
 
     /// A renderer that supports [`termcolor`] styling via [`Renderer<ColorPatch>`].
+    /// 
+    /// Layout errors are eagerly reported. It is assumed the underlyinng buffer does not have a width constraint.
     #[derive(Debug, Clone, Default)]
+    #[non_exhaustive]
     pub struct TermcolorRenderer<W> {
         pub inner: W,
         colorstack: Vec<ColorSpec>,
@@ -445,6 +461,7 @@ mod termcolor_renderer {
     where
         W: WriteColor,
     {
+        type Finish = ();
         type Error = RenderError;
         fn receive<'p>(
             &mut self,

@@ -2,7 +2,7 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, RefDoc, DocBuilder, GroupPolicy,
+    Arena, RefDoc, RefDocBuilder, GroupPolicy,
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
     renderer::RenderError,
 };
@@ -12,7 +12,7 @@ enum SExp {
     List(Vec<SExp>),
 }
 impl SExp {
-    fn to_doc<'a>(&'a self, builder: &DocBuilder<'static, 'a, ()>) -> RefDoc<'static, 'a, ()> {
+    fn to_doc<'a>(&'a self, builder: &RefDocBuilder<'static, 'a, ()>) -> RefDoc<'static, 'a, ()> {
         match self {
             SExp::Atom(num) => builder.flat_text(format!("{num:?}")),
             SExp::List(children) => {
@@ -35,12 +35,12 @@ impl SExp {
 
     fn to_string(&self) -> Result<String, RenderError> {
         let arena = Arena::new();
-        let doc = self.to_doc(&DocBuilder::new(&arena));
+        let doc = self.to_doc(&RefDocBuilder::new(&arena));
         doc.to_plaintext()
     }
     fn to_string_with(&self, settings: LayoutSettings) -> Result<String, RenderError> {
         let arena = Arena::new();
-        let doc = self.to_doc(&DocBuilder::new(&arena));
+        let doc = self.to_doc(&RefDocBuilder::new(&arena));
         doc.to_plaintext_with(settings)
     }
 }

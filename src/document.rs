@@ -19,22 +19,28 @@ use crate::{
 ///
 /// This type is not intended to be constructed externally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FlatFragment<'s> {
     inner: Cow<'s, str>,
     pub(crate) width: usize,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ContainsTab {
     #[error("Contains tab at byte offset {0} of string '{1:?}'.")]
     ContainsTab(usize, String),
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FragmentError {
     #[error("Contains linebreak sequence {0:?} at byte offset {1} of string '{2:?}'.")]
     ContainsLinebreak(String, usize, String),
     #[error(transparent)]
     ContainsTab(#[from] ContainsTab),
 }
+
 impl<'s> FlatFragment<'s> {
     /// Provides an immutable reference into the inner payload.
     pub fn inner(&self) -> &str {
@@ -71,6 +77,7 @@ impl<'s> FlatFragment<'s> {
 ///
 /// This type is not intended to be constructed externally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TextFragment<'s> {
     Text(FlatFragment<'s>),
     Linebreak,
@@ -130,6 +137,7 @@ impl From<ContainsTab> for BreakNodeInvalid {
 /// Invariants:
 /// - The `broken` field must contain at least one linebreak.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Break<'s> {
     flat: FlatFragment<'s>,
     broken: Box<[TextFragment<'s>]>,
@@ -143,7 +151,7 @@ impl<'s> Break<'s> {
     pub fn broken(&self) -> &[TextFragment<'s>] {
         &self.broken
     }
-    /// Consumes self and returns its constitutent components.
+    /// Consumes self and returns its constitutent components of `(flat, broken)`.
     pub fn into_inner(self) -> (FlatFragment<'s>, Box<[TextFragment<'s>]>) {
         (self.flat, self.broken)
     }
@@ -173,6 +181,7 @@ impl<'s> Break<'s> {
 ///
 /// Used for [`LayoutSettings`] configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BreakStatus {
     /// This group contains one or more [`Document::HardLinebreak`], or [`Document::Group`] with policy [`GroupPolicy::ForceBreak`].
     /// This group *must* be displayed broken, regardless of current policy.
@@ -195,6 +204,7 @@ impl Add for BreakStatus {
 
 /// The group policy governing how a [`Document::Group`] node interacts with layout.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GroupPolicy {
     /// The default policy.
     /// - If the flat length is no more than a minimum threshold within width constraints, display flat.
@@ -228,6 +238,7 @@ pub enum GroupPolicy {
 /// these values are cached upon construction for collections,
 /// leading to time complexity linear to the depth of the document tree.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sequence<D> {
     children: Box<[D]>,
     pub(crate) status: BreakStatus,
@@ -271,10 +282,25 @@ where
 /// - `'s`: the lifetime of owned or borrowed string fragments, which are of type [`Cow<'s, str>`].
 /// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.  
 ///   `D` should implement [`Deref<Target = Document<..>>`].  
-///   Provided implementors include:
-///   - [`RefDoc`](crate::RefDoc) for arena-backed allocation and construction, with sharing of leaf nodes.
-///   - [`OwnedDoc`](crate::OwnedDoc) for directly-owned [`Box`]'ed values.
 /// - `A`: the type of annotations. Defaults to unit type `()`.
+/// 
+/// Provided implementors compatible as `D` are:
+/// - [`RefDoc`](crate::RefDoc): A document that takes immutable reference to its children and is arena-allocated.
+///   - Reduces heap fragmentation, *but:*
+///   - Increased complexity in builder patterns and usage due to requiring a [`RefDocBuilder`](crate::RefDocBuilder)
+///     and backing [`typed_arena::Arena`].
+///   - *Prefer this for:* transient documents, i.e. those that are rendered in the same scope as its allocating arena.
+/// - [`BoxDoc`](crate::BoxDoc): A document that owns its internals, in full, via [`Box`].
+///   - Simple to build statically, store and send between threads,
+///   - Natively supports [`serde`](https://docs.rs/serde/1.0.229/serde/), *but:*
+///   - May suffer from heap fragmentation and duplication of common nodes.
+///   - *Prefer this for:* persistently-stored unique documents.
+/// - [`ArcDoc`](crate::ArcDoc): A document that persistently shares its internals, via [`Arc`].
+///   - Simple to build statically *or* use a builder pattern via [`ArcDocBuilder`](crate::ArcDocBuilder),
+///   - Thread-safe, *but:*
+///   - May suffer from heap fragmentation.
+///   - Deduplication and sharing of leaf nodes is lost if serialized and deserialized.
+///   - *Prefer this for:* persistently-stored shared documents.
 ///
 /// Some of the variants use opaque datatypes with accessor functions to maintain internal invariants.
 /// Generally, a `Document` should be treated as immutable upon construction.
@@ -350,6 +376,7 @@ where
 /// and while a best-effort attempt is made to reduce or flatten equivalent forms,
 /// some transformations are not possible without global inspection and reconstruction of the document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
@@ -647,17 +674,17 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::OwnedDoc;
+    use crate::BoxDoc;
     #[test]
     fn group_nil_no_break() {
-        let data: OwnedDoc<()> = OwnedDoc::group(OwnedDoc::nil(), GroupPolicy::ForceBreak);
+        let data: BoxDoc<()> = BoxDoc::group(BoxDoc::nil(), GroupPolicy::ForceBreak);
         assert!(!data.layout_mode_observable(GroupPolicy::Normal));
         assert_eq!(data.break_status(), BreakStatus::FlatLength(0));
     }
     #[test]
     fn observable_override() {
-        let data: OwnedDoc<()> = OwnedDoc::group(
-            OwnedDoc::breaker("somebody", "once\ntold\nme"),
+        let data: BoxDoc<()> = BoxDoc::group(
+            BoxDoc::breaker("somebody", "once\ntold\nme"),
             GroupPolicy::Normal,
         );
         assert!(data.layout_mode_observable(GroupPolicy::FlatIfPossible));

@@ -26,28 +26,28 @@ pub enum SExp {
 }
 ```
 
-We define a conversion to a [`Document`] type. For simplicity we'll export an [`OwnedDoc`], though these patterns also work for builder-dependent Document types like [`RefDoc`].
+We define a conversion to a [`Document`] type. For simplicity we'll export an [`BoxDoc`], though these patterns also work for builder-dependent Document types like [`RefDoc`].
 
 ```rust
-use groupnest::{OwnedDoc, GroupPolicy};
+use groupnest::{BoxDoc, GroupPolicy};
 
 impl SExp {
-    pub fn to_doc(&self) -> OwnedDoc<'_, ()> {
+    pub fn to_doc(&self) -> BoxDoc<()> {
         match self {
-            SExp::Atom(num) => OwnedDoc::flat_text(num.to_string()),
+            SExp::Atom(num) => BoxDoc::flat_text(num.to_string()),
             SExp::List(children) => {
                 let children_docs = children.iter()
                     .map(|child| child.to_doc())
                     .collect::<Vec<_>>();
-                OwnedDoc::grouped_sequence(vec![
-                    OwnedDoc::flat_text("("),
-                    OwnedDoc::nest(1, 
-                        OwnedDoc::sequence_intersperse_with(
+                BoxDoc::grouped_sequence(vec![
+                    BoxDoc::flat_text("("),
+                    BoxDoc::nest(1, 
+                        BoxDoc::sequence_intersperse_with(
                             children_docs,
-                            OwnedDoc::breaker(" ", "\n"),
+                            BoxDoc::breaker(" ", "\n"),
                         )
                     ),
-                    OwnedDoc::flat_text(")"),
+                    BoxDoc::flat_text(")"),
                 ], GroupPolicy::Normal)
             }
         }
@@ -97,7 +97,8 @@ We can also test that nesting and grouping behaves as we expected, by configurin
 
 ***Two.*** Existing crates, while mature in their own right, were unsuited for my usage or just had minor inconveniences that irked me.
 
-In particular:  
+*In particular:*
+
 1. Follows the original Wadler algebraic formulation, in which:
     - Concatenation is pairwise, leading to deeply-nested document trees.
     - Multiple concatenation options exist.
@@ -106,7 +107,8 @@ In particular:
 3. Opaque, uninspectable document types.
 4. Documentation for usage best described as Spartan, assuming that you have already read the Wadler papers, and then some.
 
-In contrast, this implementation:  
+*In contrast, this implementation:*
+
 1. Follows an alternate formulation by the Gleam language team, where:
     - Sequences are flattened boxed slices, reducing tree depth.
     - Concatenation is not primitive, but can be done via nested `Sequence` nodes.
@@ -121,40 +123,39 @@ In contrast, this implementation:
 
 ### Further Documentation
 
-- For document construction, refer to the raw Wadler [`Document`] representation and its wrappers:
+- For document construction, refer to the raw Wadler [`Document`] representation and its wrappers implementing [`Deref<Target = Document<...>>`]:
   - [`RefDoc`]: A document that takes immutable reference to its children and is arena-allocated.
     - Reduces heap fragmentation, *but:*
-    - Increases verbosity in builder patterns due to the caller requiring to provide an arena and [`DocBuilder`] instance.
-  - [`OwnedDoc`]: A document that owns its internals, in full, via `Box`.
-    - Simpler to build and store, *but:*
+    - Increased complexity in builder patterns and usage due to requiring a [`RefDocBuilder`] and backing [`Arena`].
+    - Prefer this for transient documents, i.e. those that are rendered in the same scope as its allocating arena.
+  - [`BoxDoc`]: A document that owns its internals, in full, via [`Box`].
+    - Simple to build statically, store and send between threads,
+    - Natively supports [`serde`](https://docs.rs/serde/1.0.229/serde/), *but:*
     - May suffer from heap fragmentation and duplication of common nodes.
+    - Prefer this for persistently-stored unique documents.
+  - [`ArcDoc`]: A document that persistently shares its internals, via [`Arc`].
+    - Simple to build statically *or* use a builder pattern via [`ArcDocBuilder`],
+    - Thread-safe, *but:*
+    - May suffer from heap fragmentation.
+    - Deduplication and sharing of leaf nodes is lost if serialized and deserialized.
+    - Prefer this for persistently-stored shared documents.
 
 - For document consumption, refer to the [`Renderer`] trait and its implementors.
   - The input to [`Renderer`] implementors is formed via [`LayoutEngine`], which is accessed by convenience functions [`Document::as_layout`] and [`Document::as_layout_with`].
   - This crate natively supports plaintext rendering via [`PlaintextRenderer`] and convenience functions [`Document::to_plaintext`] and [`Document::to_plaintext_with`].
-  - The optional feature flag `termcolor` enables [`termcolor`](https://docs.rs/termcolor/latest/termcolor/) support for annotations via [`ColorPatch`] and rendering via [`TermcolorRenderer`].
+
+- The opt-in feature flags below provide the following:
+  - `termcolor`: Enables [`termcolor`](https://docs.rs/termcolor/latest/termcolor/) support for annotations via [`ColorPatch`] and rendering via [`TermcolorRenderer`].
+  - `serde`: Implements [`serde::Serialize`] and [`serde::Deserialize`] for supported structs and enums.
 
 ### Alternatives
 
 There's quite a few! A non-exhaustive list of existing options:
 - [`pretty`](https://crates.io/crates/pretty): The classic. Basically the original Wadler algorithm verbatim.
 - [`prettyless`](https://crates.io/crates/prettyless): A fork of `pretty` with (allegedly) more ergonomic usage within Rust.
-- [`pprint`](https://crates.io/crates/pprint): *In addition* to being a document constructor, also provides derivable pretty-printing for Rust datatypes. Basically a neater version of `Debug`, neat!
+- [`pprint`](https://crates.io/crates/pprint): *In addition* to being a document constructor, also provides derivable pretty-printing for Rust datatypes. Basically a neater version of [`Debug`], neat!
 - [`sparkly`](https://crates.io/crates/sparkly): Built-in terminal and ANSI coloring support.
 
 ### Will This Be On [`crates.io`](https://crates.io/)?
 
 Maybe, probably not.
-
-[`Document`]: crate::document::Document
-[`RefDoc`]: crate::RefDoc
-[`OwnedDoc`]: crate::OwnedDoc
-[`DocBuilder`]: crate::DocBuilder
-[`Renderer`]: crate::renderer::Renderer
-[`LayoutEngine`]: crate::layout::LayoutEngine
-[`Document::as_layout`]: crate::document::Document::as_layout
-[`Document::as_layout_with`]: crate::document::Document::as_layout_with
-[`Document::to_plaintext`]: crate::document::Document::to_plaintext
-[`Document::to_plaintext_with`]: crate::document::Document::to_plaintext_with
-[`ColorPatch`]: crate::renderer::ColorPatch
-[`TermcolorRenderer`]: crate::renderer::TermcolorRenderer
