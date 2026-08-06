@@ -1,7 +1,11 @@
-//! This crate should not be visible.
+//! Definition of the types wrapping [`Document`](crate::document::Document).
+//!
+//! The contents of this module are `pub use` in the crate root.
 
-pub mod common;
+mod common;
 
-pub mod boxdoc;
-pub mod refdoc;
-pub mod arcdoc;
+pub(crate) mod arcdoc;
+pub(crate) mod boxdoc;
+pub(crate) mod refdoc;
+
+pub use {arcdoc::*, boxdoc::*, refdoc::*};

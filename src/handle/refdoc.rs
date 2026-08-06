@@ -6,9 +6,10 @@ use typed_arena::Arena;
 #[cfg(feature = "serde")]
 use serde::Serialize;
 
-use crate::{handle::common::LeafKey, document::{
-    BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy,
-}};
+use crate::{
+    document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy},
+    handle::common::LeafKey,
+};
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
 ///
@@ -18,14 +19,14 @@ use crate::{handle::common::LeafKey, document::{
 ///
 /// Due to not owning its internals, this type cannot construct itself.
 /// It is the responsibility of [`RefDocBuilder`] and similar data structures to implement the [`Document`] smart constructors.
-/// 
+///
 /// ## Note on [`serde`] Support
-/// 
+///
 /// As this type is unable to contruct itself, it currently only implements [`serde::Serialize`].
 /// [`RefDoc`], [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
 /// and hence share identical serialized representations,
 /// so a serialized [`RefDoc`] may be deserialized as the other two representations.
-/// 
+///
 /// Future support would entail implementing [`serde::de::DeserializeSeed`] for [`RefDocBuilder`].
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into, AsRef)]
@@ -37,10 +38,14 @@ impl<'s, 'doc, A> Deref for RefDoc<'s, 'doc, A> {
     }
 }
 #[cfg(feature = "serde")]
-impl<'s, 'doc, A> Serialize for RefDoc<'s, 'doc, A> where A : Serialize {
+impl<'s, 'doc, A> Serialize for RefDoc<'s, 'doc, A>
+where
+    A: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer {
+        S: serde::Serializer,
+    {
         self.0.serialize(serializer)
     }
 }
@@ -87,18 +92,18 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
 
     /// Allocates and/or interns a document node into the held arena.
     /// Hence, the `alloc` closure expected by `Document` is `|inner| self.alloc(inner)`.
-    /// 
+    ///
     /// This is used internally for all smart construction, and is not intended to be used directly.
-    /// 
+    ///
     /// ## Why `&self`?
-    /// 
+    ///
     /// In short: more ergonomic expression-based usage.
-    /// 
+    ///
     /// ```
     /// use groupnest::{Arena, RefDocBuilder, GroupPolicy};
     /// let arena = Arena::new();
     /// let builder: RefDocBuilder<'_, '_, ()> = RefDocBuilder::new(&arena);
-    /// 
+    ///
     /// // This is possible with immutable reference, but not mutable reference:
     /// let example = builder.group(
     ///     builder.sequence(vec![
@@ -108,10 +113,10 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
     ///     GroupPolicy::Normal
     /// );
     /// ```
-    /// 
+    ///
     /// Each invokation of the smart constructors above would need to be bound to individual statements
     /// if `builder` is taken via mutable reference.
-    /// 
+    ///
     /// In practice, [`typed_arena::Arena`] already observes interior mutability by allocating via `&self`,
     /// so the only change this necessitates is gating the interning map behind a synchronization lock.
     /// As Rust has specified execution order, these operations occur in the order you expect them to.

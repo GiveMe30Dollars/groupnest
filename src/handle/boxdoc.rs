@@ -7,7 +7,10 @@ use derive_more::{AsMut, AsRef};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{ArcDoc, ArcDocBuilder, document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy}};
+use crate::{
+    ArcDoc, ArcDocBuilder,
+    document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy},
+};
 
 /// The notation document format, owning and heap-allocating all of its children and fragments via [`Box`].
 ///
@@ -42,18 +45,25 @@ impl<A> From<BoxDoc<A>> for Document<'static, BoxDoc<A>, A> {
 }
 
 #[cfg(feature = "serde")]
-impl<A> Serialize for BoxDoc<A> where A : Serialize {
+impl<A> Serialize for BoxDoc<A>
+where
+    A: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer {
+        S: serde::Serializer,
+    {
         self.0.serialize(serializer)
     }
 }
 #[cfg(feature = "serde")]
-impl<'de, A> Deserialize<'de> for BoxDoc<A> where A : Deserialize<'de> {
+impl<'de, A> Deserialize<'de> for BoxDoc<A>
+where
+    A: Deserialize<'de>,
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>
+        D: serde::Deserializer<'de>,
     {
         Ok(BoxDoc(Box::deserialize(deserializer)?))
     }
@@ -101,10 +111,7 @@ impl<A> BoxDoc<A> {
     /// # Panics
     ///
     /// Panics if `flat` contains newline sequences, `broken` does not contain any, and either contain tabs.
-    pub fn breaker<'s>(
-        flat: impl Into<Cow<'s, str>>,
-        broken: impl Into<Cow<'s, str>>,
-    ) -> Self {
+    pub fn breaker<'s>(flat: impl Into<Cow<'s, str>>, broken: impl Into<Cow<'s, str>>) -> Self {
         let flat = flat.into().into_owned();
         let broken = broken.into().into_owned();
         Document::breaker(flat, broken, Into::into)
@@ -160,29 +167,25 @@ impl<A> BoxDoc<A> {
     pub fn into_arc_with(self, builder: &ArcDocBuilder<A>) -> ArcDoc<A> {
         match *self.0 {
             Document::Nil => builder.nil(),
-            Document::Text(fragment) => {
-                builder.alloc(Document::Text(fragment))
-            },
-            Document::Break(breaker) => {
-                builder.alloc(Document::Break(breaker))
-            },
+            Document::Text(fragment) => builder.alloc(Document::Text(fragment)),
+            Document::Break(breaker) => builder.alloc(Document::Break(breaker)),
             Document::HardLinebreak => builder.hard_linebreak(),
-            Document::Group(policy, child) => {
-                builder.group(child.into_arc_with(builder), policy)
-            },
+            Document::Group(policy, child) => builder.group(child.into_arc_with(builder), policy),
             Document::Sequence(sequence) => {
-                let children = sequence.into_children()
+                let children = sequence
+                    .into_children()
                     .into_iter()
                     .map(|child| child.into_arc_with(builder))
                     .collect::<Vec<_>>();
                 builder.sequence(children)
-            },
+            }
             Document::Nest(indentation, inner) => {
                 builder.nest(indentation, inner.into_arc_with(builder))
-            },
-            Document::Annotation(annotation, inner) => {
-                builder.alloc(Document::Annotation(annotation, inner.into_arc_with(builder)))
-            },
+            }
+            Document::Annotation(annotation, inner) => builder.alloc(Document::Annotation(
+                annotation,
+                inner.into_arc_with(builder),
+            )),
         }
     }
 }

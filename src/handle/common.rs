@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::{document::{Break, Document, FlatFragment}};
+use crate::document::{Break, Document, FlatFragment};
 
 /// The interning key for leaf nodes of a `Doc`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12,7 +12,7 @@ pub(crate) enum LeafKey<'s> {
 }
 impl<'s, 'doc, A, D> TryFrom<&'doc Document<'s, D, A>> for LeafKey<'s>
 where
-    D : Deref<Target = Document<'s, D, A>>,
+    D: Deref<Target = Document<'s, D, A>>,
 {
     type Error = ();
     fn try_from(value: &'doc Document<'s, D, A>) -> Result<Self, Self::Error> {

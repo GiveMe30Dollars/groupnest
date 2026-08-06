@@ -11,7 +11,10 @@ use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    PlaintextRenderer, RenderAdaptorExt, layout::{LayoutEngine, LayoutSettings}, lines, renderer::RenderError
+    PlaintextRenderer, RenderAdaptorExt,
+    layout::{LayoutEngine, LayoutSettings},
+    lines,
+    renderer::RenderError,
 };
 
 /// An flat text fragment.
@@ -283,7 +286,7 @@ where
 /// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.  
 ///   `D` should implement [`Deref<Target = Document<..>>`].  
 /// - `A`: the type of annotations. Defaults to unit type `()`.
-/// 
+///
 /// Provided implementors compatible as `D` are:
 /// - [`RefDoc`](crate::RefDoc): A document that takes immutable reference to its children and is arena-allocated.
 ///   - Reduces heap fragmentation, *but:*
@@ -396,7 +399,7 @@ pub enum Document<'s, D, A = ()> {
     /// A group node will render based on its policy, the default being to render flat if possible and broken otherwise.
     Group(GroupPolicy, D),
     /// A sequence containing a collection of children.
-    /// 
+    ///
     /// This node by itself does *not* introduce a layout decision point. Refer to [`Document::Group`].
     /// A common usage pattern is `Group(policy = _, Sequence(...))` for introducing a sequence with a decisioin point.
     Sequence(Sequence<D>),
@@ -406,7 +409,7 @@ pub enum Document<'s, D, A = ()> {
     /// the current line will be unaffected by entering or exiting of a `Nest` scope if it already contains non-padding text.
     Nest(usize, D),
     /// An annotation.
-    /// 
+    ///
     /// The layout algorithm assumes that annotations do not affect layout decisions,
     /// and defers rendering choices to respective [`Renderer`](crate::Renderer) implementors.
     Annotation(Box<A>, D),
@@ -476,7 +479,10 @@ where
         LayoutEngine::new(self)
     }
     /// Borrows the notation document to produce a layout engine with the specified settings.
-    pub fn as_layout_with<'doc>(&'doc self, settings: LayoutSettings) -> LayoutEngine<'s, 'doc, D, A> {
+    pub fn as_layout_with<'doc>(
+        &'doc self,
+        settings: LayoutSettings,
+    ) -> LayoutEngine<'s, 'doc, D, A> {
         LayoutEngine::with_settings(self, settings)
     }
 

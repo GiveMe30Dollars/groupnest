@@ -81,12 +81,12 @@ struct CallFrame<'s, 'doc, D, A> {
 /// - `'doc`: the lifetime of the document. `'s` **must** outlive `'doc`, and this would be the case for well-formed documents.
 /// - `D`: the type of children. This should be a fixed-point reference or smart pointer, wrapped in a Rust newtype.
 /// - `A`: the type of annotations. Defaults to unit type `()`.
-/// 
+///
 /// # Note on [`Iterator::Item`]
-/// 
+///
 /// Due to accessing the `'s`-valid string fragments *through* document references of lifetime `'doc`, and `'s : 'doc`,
 /// the item returned must be of the shorter lifetime, hence `'doc`.
-/// 
+///
 /// Refer to [`Renderer`](crate::Renderer) "Note on Lifetime `'payload`" for more information.
 #[derive(Debug, Clone)]
 pub struct LayoutEngine<'s, 'doc, D, A>
@@ -115,12 +115,18 @@ where
     's: 'doc,
 {
     /// Creates a document with the given document, using default layout settings.
-    pub fn new(document: &'doc Document<'s, D, A>) -> Self where Self : 'doc {
+    pub fn new(document: &'doc Document<'s, D, A>) -> Self
+    where
+        Self: 'doc,
+    {
         let settings = LayoutSettings::default();
         Self::with_settings(document, settings)
     }
     /// Creates a document with the given document and layout settings.
-    pub fn with_settings(document: &'doc Document<'s, D, A>, settings: LayoutSettings) -> Self where Self : 'doc {
+    pub fn with_settings(document: &'doc Document<'s, D, A>, settings: LayoutSettings) -> Self
+    where
+        Self: 'doc,
+    {
         Self {
             pending: VecDeque::new(),
             state: vec![LayoutFrame::CallFrame(CallFrame {
@@ -237,7 +243,8 @@ where
                 self.next_event()
             }
             Document::Text(fragment) => {
-                let event: RenderEvent<'doc, &'doc A> = RenderEvent::Text(fragment.width, fragment.inner());
+                let event: RenderEvent<'doc, &'doc A> =
+                    RenderEvent::Text(fragment.width, fragment.inner());
                 self.emit(event)
             }
             Document::Break(breaker) => {

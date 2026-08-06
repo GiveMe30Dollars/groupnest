@@ -1,7 +1,7 @@
 //! The canonical S-expression test, originating from `pretty` that every subsequent Wadler pretty printer library copies.
-//! 
+//!
 //! If it ain't broke, why change it?
-//! 
+//!
 //! > *Let’s pretty-print simple sexps!*
 //! >
 //! > We want to pretty print sexps like:
@@ -17,7 +17,7 @@
 
 use expect_test::expect;
 use groupnest::{
-    Arena, RefDoc, RefDocBuilder, GroupPolicy,
+    Arena, GroupPolicy, RefDoc, RefDocBuilder,
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
     renderer::RenderError,
 };
@@ -31,19 +31,24 @@ impl SExp {
         match self {
             SExp::Atom(num) => builder.flat_text(format!("{num:?}")),
             SExp::List(children) => {
-                let children_docs = children.iter()
+                let children_docs = children
+                    .iter()
                     .map(|child| child.to_doc(builder))
                     .collect::<Vec<_>>();
-                builder.grouped_sequence(vec![
-                    builder.flat_text("("),
-                    builder.nest(1,
-                        builder.sequence_intersperse_with(
-                            children_docs,
-                            builder.breaker(" ", "\n"),
-                        )
-                    ),
-                    builder.flat_text(")"),
-                ], GroupPolicy::Normal)
+                builder.grouped_sequence(
+                    vec![
+                        builder.flat_text("("),
+                        builder.nest(
+                            1,
+                            builder.sequence_intersperse_with(
+                                children_docs,
+                                builder.breaker(" ", "\n"),
+                            ),
+                        ),
+                        builder.flat_text(")"),
+                    ],
+                    GroupPolicy::Normal,
+                )
             }
         }
     }
@@ -78,7 +83,7 @@ fn cramped() {
         SExp::List(vec![SExp::Atom(2), SExp::Atom(3)]),
         SExp::List(vec![SExp::Atom(4), SExp::Atom(5), SExp::Atom(6)]),
     ]);
-    const SETTINGS : LayoutSettings = LayoutSettings {
+    const SETTINGS: LayoutSettings = LayoutSettings {
         min_width: 0,
         max_width: 10,
         width_constraint: LayoutWidthConstraint::Relaxed,

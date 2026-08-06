@@ -7,8 +7,10 @@
 //! [`ArcDocBuilder`]: crate::ArcDocBuilder
 //! [`Renderer`]: crate::renderer::Renderer
 //! [`LayoutEngine`]: crate::layout::LayoutEngine
+//! [`LayoutSettings`]: crate::layout::LayoutSettings
 //! [`Document::as_layout`]: crate::document::Document::as_layout
 //! [`Document::as_layout_with`]: crate::document::Document::as_layout_with
+//! [`PlaintextRenderer`]: crate::PlaintextRenderer
 //! [`Document::to_plaintext`]: crate::document::Document::to_plaintext
 //! [`Document::to_plaintext_with`]: crate::document::Document::to_plaintext_with
 //! [`Deref<Target = Document<...>>`]: std::ops::Deref
@@ -18,8 +20,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod document;
-
-mod handle;
+pub mod handle;
 
 pub mod layout;
 pub mod lines;
@@ -28,9 +29,9 @@ pub mod renderer;
 pub use crate::{
     document::GroupPolicy,
     handle::{
-        boxdoc::{BoxDoc},
-        refdoc::{RefDoc, RefDocBuilder},
         arcdoc::{ArcDoc, ArcDocBuilder},
+        boxdoc::BoxDoc,
+        refdoc::{RefDoc, RefDocBuilder},
     },
     renderer::{PlaintextRenderer, RenderAdaptorExt, Renderer},
 };

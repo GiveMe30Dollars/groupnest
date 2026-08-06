@@ -70,7 +70,7 @@ Then, turning that into a [`String`] is as easy as a method call:
     expect!["((1) (2 3) (4 5 6))"].assert_eq(&out);
 ```
 
-We can also test that nesting and grouping behaves as we expected, by configuring via `LayoutSettings`.
+We can also test that nesting and grouping behaves as we expected, by configuring via [`LayoutSettings`].
 
 ```rust
     use groupnest::layout::LayoutSettings;
@@ -158,3 +158,28 @@ There's quite a few! A non-exhaustive list of existing options:
 ### Will This Be On [`crates.io`](https://crates.io/)?
 
 Maybe, probably not.
+
+[`String`]: https://doc.rust-lang.org/std/string/struct.String.html
+[`Document`]: /src/document.rs
+[`RefDoc`]: /src/handle/refdoc.rs
+[`RefDocBuilder`]: /src/handle/refdoc.rs
+[`Arena`]: https://docs.rs/typed-arena/latest/typed_arena/struct.Arena.html
+[`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
+[`BoxDoc`]: /src/handle/boxdoc.rs
+[`Arc`]: https://doc.rust-lang.org/std/sync/struct.Arc.html
+[`ArcDoc`]: /src/handle/arcdoc.rs
+[`ArcDocBuilder`]: /src/handle/arcdoc.rs
+[`Renderer`]: /src/renderer.rs
+[`LayoutEngine`]: /src/layout.rs
+[`LayoutSettings`]: /src/layout.rs
+[`Document::as_layout`]: /src/document.rs
+[`Document::as_layout_with`]: /src/document.rs
+[`PlaintextRenderer`]: /src/renderer.rs
+[`Document::to_plaintext`]: /src/document.rs
+[`Document::to_plaintext_with`]: /src/document.rs
+[`Deref<Target = Document<...>>`]: https://doc.rust-lang.org/std/ops/trait.Deref.html
+[`ColorPatch`]: /src/renderer.rs
+[`TermcolorRenderer`]: /src/renderer.rs
+[`serde::Serialize`]: https://docs.rs/serde/latest/serde/trait.Serialize.html
+[`serde::Deserialize`]: https://docs.rs/serde/latest/serde/trait.Deserialize.html
+[`Debug`]: https://doc.rust-lang.org/std/fmt/trait.Debug.html

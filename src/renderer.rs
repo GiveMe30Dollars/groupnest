@@ -4,14 +4,14 @@ use thiserror::Error;
 
 /// A data structure representing rendering events, produced by a [`LayoutEngine`](crate::layout::LayoutEngine)
 /// and to be consumed by a [`Renderer`].
-/// 
+///
 /// # Note on Lifetime `'payload`
-/// 
+///
 /// The lifetime `'payload` refers to the lifetime of the string reference that [`RenderEvent::Text`] holds.
 /// Because this typically points to a [`Document`](crate::document::Document) type,
 /// `'payload` is *not* `'s` but the lifetime of the document reference `'doc`,
 /// where `'doc : 's` necessarily holds by construction.
-/// 
+///
 /// Implementors may shorten `'payload` to `'p`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -188,7 +188,7 @@ pub enum RenderError {
 }
 
 /// A plaintext renderer implementing the [`Renderer`] protocol.
-/// 
+///
 /// Layout errors are eagerly reported. It is assumed the underlyinng buffer does not have a width constraint.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -328,9 +328,9 @@ mod termcolor_renderer {
     ///
     /// For the patch that is semantically equivalent to [`termcolor::ColorSpec::clear`],
     /// use [`ColorPatch::clear_all()`].
-    /// 
+    ///
     /// ## Note on [`serde`] Support
-    /// 
+    ///
     /// Due to containing [`termcolor::Color`], which does not support `serde` serialization and deserialization,
     /// this type does not implement `serde` support.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -422,7 +422,7 @@ mod termcolor_renderer {
     }
 
     /// A renderer that supports [`termcolor`] styling via [`Renderer<ColorPatch>`].
-    /// 
+    ///
     /// Layout errors are eagerly reported. It is assumed the underlyinng buffer does not have a width constraint.
     #[derive(Debug, Clone, Default)]
     #[non_exhaustive]
