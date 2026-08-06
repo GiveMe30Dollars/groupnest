@@ -3,8 +3,11 @@ use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Deref, sync::Mutex
 use derive_more::{AsRef, From, Into};
 use typed_arena::Arena;
 
+#[cfg(feature = "serde")]
+use serde::Serialize;
+
 use crate::{handle::common::LeafKey, document::{
-    Break, BreakNodeInvalid, ContainsTab, Document, FlatFragment, FragmentError, GroupPolicy,
+    BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy,
 }};
 
 /// The notation document format, allocated via arena and taking immutable reference to its children and fragments.
@@ -15,6 +18,15 @@ use crate::{handle::common::LeafKey, document::{
 ///
 /// Due to not owning its internals, this type cannot construct itself.
 /// It is the responsibility of [`RefDocBuilder`] and similar data structures to implement the [`Document`] smart constructors.
+/// 
+/// ## Note on [`serde`] Support
+/// 
+/// As this type is unable to contruct itself, it currently only implements [`serde::Serialize`].
+/// [`RefDoc`], [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
+/// and hence share identical serialized representations,
+/// so a serialized [`RefDoc`] may be deserialized as the other two representations.
+/// 
+/// Future support would entail implementing [`serde::de::DeserializeSeed`] for [`RefDocBuilder`].
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into, AsRef)]
 pub struct RefDoc<'s, 'doc, A = ()>(pub &'doc Document<'s, Self, A>);
@@ -22,6 +34,14 @@ impl<'s, 'doc, A> Deref for RefDoc<'s, 'doc, A> {
     type Target = Document<'s, Self, A>;
     fn deref(&self) -> &Self::Target {
         self.0
+    }
+}
+#[cfg(feature = "serde")]
+impl<'s, 'doc, A> Serialize for RefDoc<'s, 'doc, A> where A : Serialize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        self.0.serialize(serializer)
     }
 }
 

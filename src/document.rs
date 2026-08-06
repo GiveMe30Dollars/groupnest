@@ -295,7 +295,7 @@ where
 ///   - Natively supports [`serde`](https://docs.rs/serde/1.0.229/serde/), *but:*
 ///   - May suffer from heap fragmentation and duplication of common nodes.
 ///   - *Prefer this for:* persistently-stored unique documents.
-/// - [`ArcDoc`](crate::ArcDoc): A document that persistently shares its internals, via [`Arc`].
+/// - [`ArcDoc`](crate::ArcDoc): A document that persistently shares its internals, via [`Arc`](std::sync::Arc).
 ///   - Simple to build statically *or* use a builder pattern via [`ArcDocBuilder`](crate::ArcDocBuilder),
 ///   - Thread-safe, *but:*
 ///   - May suffer from heap fragmentation.

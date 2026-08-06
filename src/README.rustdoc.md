@@ -199,8 +199,7 @@ We can also test that nesting and grouping behaves as we expected, by configurin
     - Increased complexity in builder patterns and usage due to requiring a [`RefDocBuilder`] and backing [`Arena`].
     - Prefer this for transient documents, i.e. those that are rendered in the same scope as its allocating arena.
   - [`BoxDoc`]: A document that owns its internals, in full, via [`Box`].
-    - Simple to build statically, store and send between threads,
-    - Natively supports [`serde`](https://docs.rs/serde/1.0.229/serde/), *but:*
+    - Simple to build statically, store and send between threads, *but:*
     - May suffer from heap fragmentation and duplication of common nodes.
     - Prefer this for persistently-stored unique documents.
   - [`ArcDoc`]: A document that persistently shares its internals, via [`Arc`].
@@ -216,7 +215,7 @@ We can also test that nesting and grouping behaves as we expected, by configurin
 
 - The opt-in feature flags below provide the following:
   - `termcolor`: Enables [`termcolor`](https://docs.rs/termcolor/latest/termcolor/) support for annotations via [`ColorPatch`] and rendering via [`TermcolorRenderer`].
-  - `serde`: Implements [`serde::Serialize`] and [`serde::Deserialize`] for supported structs and enums.
+  - `serde`: Enables [`serde`](https://crates.io/crates/serde) support by implementing [`serde::Serialize`] and [`serde::Deserialize`] for supported structs and enums.
 
 ## Alternatives
 

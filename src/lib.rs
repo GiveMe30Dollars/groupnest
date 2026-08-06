@@ -11,6 +11,7 @@
 //! [`Document::as_layout_with`]: crate::document::Document::as_layout_with
 //! [`Document::to_plaintext`]: crate::document::Document::to_plaintext
 //! [`Document::to_plaintext_with`]: crate::document::Document::to_plaintext_with
+//! [`Deref<Target = Document<...>>`]: std::ops::Deref
 //! [`ColorPatch`]: crate::renderer::ColorPatch
 //! [`TermcolorRenderer`]: crate::renderer::TermcolorRenderer
 #![doc = include_str!("README.rustdoc.md")]

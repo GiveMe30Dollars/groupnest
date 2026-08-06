@@ -1,4 +1,19 @@
-//! The canonical S-expression test.
+//! The canonical S-expression test, originating from `pretty` that every subsequent Wadler pretty printer library copies.
+//! 
+//! If it ain't broke, why change it?
+//! 
+//! > *Let’s pretty-print simple sexps!*
+//! >
+//! > We want to pretty print sexps like:
+//! > ```ignore
+//! > (1 2 3)
+//! > ```
+//! > or, if the line would be too long, like:
+//! > ```ignore
+//! > ((1)
+//! >  (2 3)
+//! >  (4 5 6))
+//! > ```
 
 use expect_test::expect;
 use groupnest::{

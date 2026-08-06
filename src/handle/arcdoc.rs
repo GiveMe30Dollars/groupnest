@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, ops::Deref, sync::{Arc, Mutex}};
 
-use derive_more::{AsRef, From, Into};
+use derive_more::{AsRef};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -16,12 +16,11 @@ use crate::{GroupPolicy, BoxDoc, handle::common::LeafKey, document::{BreakNodeIn
 /// This type can construct itself, but it is not recommended due to duplication of leaf nodes and string fragments.
 /// Prefer construction via [`ArcDocBuilder`].
 /// 
-/// ## Note on [`serde::Serialize`] and [`serde::Deserialize`]
+/// ## Note on [`serde`] Support
 /// 
-/// Due to using [`Arc`], shared pointer equality is not preserved across serialization and deserialization.
+/// Due to using [`Arc`], shared pointer equality is currently not preserved across serialization and deserialization.
 /// 
-/// To make this behaviour explicit, [`ArcDoc`] does not itself implement [`serde::Serialize`] and [`serde::Deserialize`].
-/// You must first convert to and from [`BoxDoc`] via [`ArcDoc::to_box_doc`] and [`BoxDoc::to_arc_doc`].
+/// Future support for shared deserialization would entail implementing [`serde::de::DeserializeSeed`] for [`ArcDocBuilder`].
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Hash, AsRef)]
 #[as_ref(forward)]
@@ -231,7 +230,7 @@ impl<A> ArcDoc<A> {
 /// Unlike [`RefDocBuilder`](crate::RefDocBuilder), this builder allocates onto the heap via [`Arc`],
 /// and serves to deduplicate leaf nodes already present in the current document.
 /// 
-/// ## Note on [`Document`](crate::document::Document) Smart Constructors
+/// ## Note on [`Document`](crate::document::Document) Smart Constructors (ie. Why `&self`?)
 ///
 /// Due to interning, a `&self` parameter is taken for all smart constructors.
 /// See [`Self::alloc`] for more information.
