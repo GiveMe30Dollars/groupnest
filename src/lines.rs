@@ -19,26 +19,24 @@ use std::borrow::Cow;
 /// Given a UTF-8 string and a byte index, report whether this character is a newline character,
 /// and if yes, return the byte length of the newline token.
 ///
-/// # Panics
-///
-/// Panics if `index` exceeds byte length of `text`.
+/// This function returns `None` if `index` exceeds byte length of `text`.
 pub fn linebreak_len(text: &str, index: usize) -> Option<usize> {
-    const NEWLINE_CHARS: [char; 7] = [
-        '\r',       // CR, Carriage Return ("\r\n" is considered one linebreak, handled separately)
-        '\n',       // NL, Newline
-        '\u{000B}', // VT, Line Tabulation
-        '\u{000c}', // FF, Form Feed
-        '\u{0085}', // NEL, Next Line
-        '\u{2028}', // LS, Line Separator
-        '\u{2029}', // PS, Paragraph Separator
+    const NEWLINE_BYTES: [&[u8]; 7] = [
+        b"\r",           // CR, Carriage Return ("\r\n" is considered one linebreak, handled separately)
+        b"\n",           // LF, Line Feed
+        b"\x0B",         // VT, Line Tabulation
+        b"\x0C",         // FF, Form Feed
+        b"\xC2\x85",     // NEL, Next Line
+        b"\xE2\x80\xA8", // LS, Line Separator
+        b"\xE2\x80\xA9", // PS, Paragraph Separator
     ];
-    let rest = &text[index..];
-    if rest.starts_with("\r\n") {
+    let rest = text.as_bytes().get(index..)?;
+    if rest.starts_with(b"\r\n") {
         Some(2)
-    } else if NEWLINE_CHARS.iter().any(|ch| rest.starts_with(*ch)) {
-        Some(rest.chars().next().unwrap().len_utf8())
     } else {
-        None
+        NEWLINE_BYTES
+            .iter()
+            .find_map(|newline| rest.starts_with(newline).then_some(newline.len()))
     }
 }
 
@@ -161,31 +159,22 @@ mod test {
 
     #[test]
     fn newline_identification() {
-        let haystack = "\r\n\n\r\u{000B}";
-        let result = haystack
-            .char_indices()
-            .map(|(by, _)| linebreak_len(haystack, by))
-            .collect::<Vec<_>>();
-        expect![[r#"
-            [
-                Some(
-                    2,
-                ),
-                Some(
-                    1,
-                ),
-                Some(
-                    1,
-                ),
-                Some(
-                    1,
-                ),
-                Some(
-                    1,
-                ),
-            ]
-        "#]]
-        .assert_debug_eq(&result);
+         const NEWLINE_CHARS: [char; 7] = [
+            '\r',       // CR, Carriage Return ("\r\n" is considered one linebreak, handled separately)
+            '\n',       // NL, Newline
+            '\u{000B}', // VT, Line Tabulation
+            '\u{000c}', // FF, Form Feed
+            '\u{0085}', // NEL, Next Line
+            '\u{2028}', // LS, Line Separator
+            '\u{2029}', // PS, Paragraph Separator
+        ];
+        const CRLF : &str = "\r\n";
+        
+        assert_eq!(linebreak_len(CRLF, 0), Some(2));
+        let mut buffer = [0; 4]; 
+        for ch in NEWLINE_CHARS {
+            assert_eq!(linebreak_len(ch.encode_utf8(&mut buffer), 0), Some(ch.len_utf8()));
+        }
     }
 
     #[test]

@@ -244,7 +244,7 @@ impl<A> ArcDoc<A> {
 ///
 /// Due to interning, a `&self` parameter is taken for all smart constructors.
 /// See [`Self::alloc`] for more information.
-pub struct ArcDocBuilder<A> {
+pub struct ArcDocBuilder<A = ()> {
     intern: Mutex<HashMap<LeafKey<'static>, ArcDoc<A>>>,
 }
 impl<A> Default for ArcDocBuilder<A> {

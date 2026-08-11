@@ -1,0 +1,168 @@
+//! Test regarding nesting.
+//!
+//! `Nest` nodes affect logical newlines. Previously, `Nest` would only take affect on subsequent lines,
+//! thus mandating linebreaks to be placed just after entering and exiting `Nest` scopes,
+//! which is counterintuitive to an end-user.
+//!
+//! With the `LayoutEngine` now responsible for stripping extraneous padding (thus delaying their emission),
+//! it can now identify when it is at a logical newline, and respond accordingly to `Nest` indentation and dedentation.
+
+use expect_test::expect;
+use groupnest::{
+    BoxDoc, GroupPolicy,
+    document::{Document, FlatFragment},
+};
+
+#[test]
+fn strip_trailing() {
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
+        vec![BoxDoc::from_text("a\n"), BoxDoc::nest(4, BoxDoc::nil())],
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+        a
+    "#]]
+    .assert_eq(&result);
+    let lines = result.split('\n').collect::<Vec<_>>();
+    assert_eq!(lines[1].len(), 0);
+}
+
+#[test]
+fn strip_trailing_empty_string() {
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
+        vec![
+            BoxDoc::from_text("a\n"),
+            BoxDoc::nest(
+                4,
+                // Smart construction would canonize this, so we need to explicitly type it out.
+                BoxDoc(Box::new(Document::Text(FlatFragment::new("").unwrap()))),
+            ),
+        ],
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+        a
+    "#]]
+    .assert_eq(&result);
+    let lines = result.split('\n').collect::<Vec<_>>();
+    assert_eq!(lines[1].len(), 0);
+}
+
+#[test]
+fn premature_enter() {
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
+        vec![
+            BoxDoc::from_text("a\n"),
+            BoxDoc::nest(4, BoxDoc::flat_text("b")),
+        ],
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+        a
+            b"#]]
+    .assert_eq(&result);
+    let lines = result.split('\n').collect::<Vec<_>>();
+    assert_eq!(lines[1].len(), 5);
+}
+
+#[test]
+fn premature_exit() {
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
+        vec![
+            BoxDoc::nest(4, BoxDoc::from_text("b\n")),
+            BoxDoc::flat_text("c"),
+        ],
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+            b
+        c"#]]
+    .assert_eq(&result);
+    let lines = result.split('\n').collect::<Vec<_>>();
+    assert_eq!(lines[1].len(), 1);
+}
+
+#[test]
+/// The user-ergonomics test. This is how I expect most people to use this.
+/// Combination of [`premature_enter`] and [`premature_exit`].
+fn logical_newline() {
+    let doc: BoxDoc<()> = BoxDoc::group(
+        BoxDoc::sequence(vec![
+            BoxDoc::from_text("outer {\n"),
+            BoxDoc::nest(4, BoxDoc::from_text("inner\n")),
+            BoxDoc::flat_text("}"),
+        ]),
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+        outer {
+            inner
+        }"#]]
+    .assert_eq(&result);
+    // Erroneous output:
+    // ```
+    // outer {
+    // inner
+    //     }
+    // ```
+}
+
+#[test]
+fn nest_around_multiline_break() {
+    let doc: BoxDoc<()> = BoxDoc::group(
+        BoxDoc::nest(
+            2,
+            BoxDoc::sequence(vec![
+                BoxDoc::flat_text("a "),
+                BoxDoc::breaker("", "x\ny"),
+                BoxDoc::flat_text(" b"),
+                BoxDoc::breaker("", "\nif you\nchange your mind"),
+            ]),
+        ),
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    // This needs to be its own thing, because `expect_test::expect` strips up to the least amount of common indentation.
+    let expected = "  a x\n  y b\n  if you\n  change your mind";
+    assert_eq!(&expected, &result);
+}
+
+#[test]
+fn nest_in_current_line() {
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
+        vec![
+            BoxDoc::flat_text("a"),
+            BoxDoc::nest(2, BoxDoc::from_text("b\nc")),
+        ],
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    expect![[r#"
+        ab
+          c"#]]
+    .assert_eq(&result);
+}
+
+#[test]
+fn nest_with_breaker_spaces() {
+    let doc: BoxDoc<()> = BoxDoc::group(
+        BoxDoc::nest(2, BoxDoc::breaker("", "a\n  b\n  c")),
+        GroupPolicy::ForceBreak,
+    );
+
+    let result = doc.to_plaintext().unwrap();
+    let expected = "  a\n    b\n    c";
+    assert_eq!(&expected, &result);
+}

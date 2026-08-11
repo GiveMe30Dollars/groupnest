@@ -25,7 +25,7 @@ use crate::{
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FlatFragment<'s> {
     inner: Cow<'s, str>,
-    pub(crate) width: usize,
+    width: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
@@ -52,6 +52,10 @@ impl<'s> FlatFragment<'s> {
     /// Consumes self and returns its inner payload.
     pub fn into_inner(self) -> Cow<'s, str> {
         self.inner
+    }
+    /// Returns the display width of the text in terminal columns, according to Unicode East Asian Width rules.
+    pub fn unicode_width(&self) -> usize {
+        self.width
     }
     /// Constructs an flat fragment, given a raw fragment that can be taken as a string reference.
     ///
@@ -185,11 +189,15 @@ impl<'s> Break<'s> {
 /// Used for [`LayoutSettings`] configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum BreakStatus {
+pub(crate) enum BreakStatus {
     /// This group contains one or more [`Document::HardLinebreak`], or [`Document::Group`] with policy [`GroupPolicy::ForceBreak`].
     /// This group *must* be displayed broken, regardless of current policy.
     MustBreak,
-    /// This group has a minimal flat length. Whether it is displayed flat or broken depends on the group policy.
+    /// This group has a minimal flat length, as Unicode character width.
+    /// Whether it is displayed flat or broken depends on the group policy.
+    ///
+    /// "Length" refers to the display width of the text in terminal columns,
+    /// according to Unicode East Asian Width rules.
     FlatLength(usize),
 }
 impl Add for BreakStatus {
@@ -422,9 +430,10 @@ where
     pub(crate) fn break_status(&self) -> BreakStatus {
         match self {
             Document::Nil => BreakStatus::FlatLength(0),
-            Document::Text(fragment) => BreakStatus::FlatLength(fragment.width),
-            Document::Break(inner) => BreakStatus::FlatLength(inner.flat().width),
+            Document::Text(fragment) => BreakStatus::FlatLength(fragment.unicode_width()),
+            Document::Break(inner) => BreakStatus::FlatLength(inner.flat().unicode_width()),
             Document::HardLinebreak => BreakStatus::MustBreak,
+
             Document::Group(policy, child) => {
                 if matches!(policy, GroupPolicy::ForceBreak)
                     && child.layout_mode_observable(GroupPolicy::ForceBreak)
@@ -435,10 +444,8 @@ where
                 }
             }
             Document::Sequence(sequence) => sequence.status,
-            Document::Nest(indent, child) => {
-                BreakStatus::FlatLength(*indent) + child.break_status()
-            }
-            Document::Annotation(_, child) => child.break_status(),
+
+            Document::Nest(_, child) | Document::Annotation(_, child) => child.break_status(),
         }
     }
     /// Returns whether a layout mode change is observable on this node.

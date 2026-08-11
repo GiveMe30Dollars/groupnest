@@ -33,12 +33,16 @@ pub enum LayoutWidthConstraint {
 /// The layout settings for `LayoutEngine`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LayoutSettings {
-    /// The minimal width within a line in which groups must display flat.
+    /// The minimal width within a line in which groups must display flat,
+    /// where width refers to the display width of the text in terminal columns,
+    /// according to Unicode East Asian Width rules.
     ///
     /// This setting may cause width constraints to be exceeded,
     /// and hence is ignored if `WidthConstraint::Strict` is applied.
     pub min_width: usize,
-    /// The maximal width within a line in which groups can display flat.
+    /// The maximal width within a line in which groups can display flat,
+    /// where width refers to the display width of the text in terminal columns,
+    /// according to Unicode East Asian Width rules.
     pub max_width: usize,
     /// The width constraint mode used.
     pub width_constraint: LayoutWidthConstraint,
@@ -146,9 +150,14 @@ where
     /// - The returned event is not guaranteed to be the same event as the input,
     ///   and may cause further calls to [`LayoutEngine::next_event`].
     /// - [`LayoutEngine`] is free to reorganize or omit [`RenderEvent::Padding`] to strip unecessary whitespace padding.
+    /// - `RenderEvent::Text(0, "")` is eliminated, and does not cause emission of text.
     fn emit(&mut self, next: RenderEvent<'doc, &'doc A>) -> Option<RenderEvent<'doc, &'doc A>> {
         match &next {
             RenderEvent::Text(span, _) => {
+                if *span == 0 {
+                    // The empty string. DO NOT actualize emission. Get next event.
+                    return self.next_event();
+                }
                 // `Padding` is only actualized here.
                 if self.pending_padding > 0 {
                     let padding = self.pending_padding;
@@ -169,7 +178,9 @@ where
             RenderEvent::Linebreak => {
                 self.pending_padding = 0;
                 let line_width = self.cursor.1;
-                if line_width > self.settings.max_width {
+                if line_width > self.settings.max_width
+                    && self.settings.width_constraint == LayoutWidthConstraint::Strict
+                {
                     self.pending
                         .push_front(RenderEvent::Error(LayoutError::WidthExceeded {
                             line_num: self.cursor.0 + 1,
@@ -244,20 +255,23 @@ where
             }
             Document::Text(fragment) => {
                 let event: RenderEvent<'doc, &'doc A> =
-                    RenderEvent::Text(fragment.width, fragment.inner());
+                    RenderEvent::Text(fragment.unicode_width(), fragment.inner());
                 self.emit(event)
             }
             Document::Break(breaker) => {
                 if callframe.mode == LayoutMode::Flat {
                     self.pending.push_back(RenderEvent::Text(
-                        breaker.flat().width,
+                        breaker.flat().unicode_width(),
                         breaker.flat().inner(),
                     ));
                 } else {
                     self.pending
                         .extend(breaker.broken().iter().flat_map(|elem| match elem {
                             TextFragment::Text(fragment) => {
-                                vec![RenderEvent::Text(fragment.width, fragment.inner())]
+                                vec![RenderEvent::Text(
+                                    fragment.unicode_width(),
+                                    fragment.inner(),
+                                )]
                             }
                             TextFragment::Linebreak => vec![
                                 RenderEvent::Linebreak,

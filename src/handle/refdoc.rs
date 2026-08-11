@@ -56,7 +56,7 @@ where
 ///
 /// Due to interning and arena allocation, a `&self` parameter is taken for all smart constructors.
 /// See [`Self::alloc`] for more information.
-pub struct RefDocBuilder<'s, 'doc, A> {
+pub struct RefDocBuilder<'s, 'doc, A = ()> {
     arena: &'doc Arena<Document<'s, RefDoc<'s, 'doc, A>, A>>,
     intern: Mutex<HashMap<LeafKey<'s>, &'doc Document<'s, RefDoc<'s, 'doc, A>, A>>>,
 }

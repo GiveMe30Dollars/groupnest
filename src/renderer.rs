@@ -16,7 +16,10 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RenderEvent<'payload, A = ()> {
-    /// Print the following text, as is. Includes its width as calculated via Unicode width conventions.
+    /// Print the following text, as is. Includes its width,
+    /// where width refers to the display width of the text in terminal columns,
+    /// according to Unicode East Asian Width rules.
+    ///
     /// This text fragment may not contain newline sequences.
     Text(usize, &'payload str),
     /// Insert a newline character.
@@ -37,7 +40,7 @@ pub enum RenderEvent<'payload, A = ()> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayoutError {
     #[error(
-        "Line {line_num} has a width of {line_width} characters, exceeding the maximum width {max_width}"
+        "Line {line_num} has a width of {line_width} characters, exceeding the maximum width of {max_width}."
     )]
     WidthExceeded {
         /// One-indexed.
