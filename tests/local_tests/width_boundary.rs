@@ -9,38 +9,34 @@ use groupnest::{
 
 #[test]
 fn exact_fit() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("abc"),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("def"),
-        ],
-        GroupPolicy::Normal,
-    );
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("abc"),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("def"),
+    ]);
     let settings = LayoutSettings {
         min_width: 0,
         max_width: 7,
         ..Default::default()
     };
+
     let result = doc.to_plaintext_with(settings).unwrap();
     expect!["abc def"].assert_eq(&result);
 }
 
 #[test]
 fn off_by_one() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("abc"),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("def"),
-        ],
-        GroupPolicy::Normal,
-    );
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("abc"),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("def"),
+    ]);
     let settings = LayoutSettings {
         min_width: 0,
         max_width: 6, // <- !!!
         ..Default::default()
     };
+
     let result = doc.to_plaintext_with(settings).unwrap();
     expect![[r#"
         abc
@@ -50,19 +46,17 @@ fn off_by_one() {
 
 #[test]
 fn width_zero() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("abc"),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("def"),
-        ],
-        GroupPolicy::Normal,
-    );
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("abc"),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("def"),
+    ]);
     let settings = LayoutSettings {
         min_width: 0,
         max_width: 0, // <- !!!
         ..Default::default()
     };
+
     let result = doc.to_plaintext_with(settings).unwrap();
     expect![[r#"
         abc
@@ -72,20 +66,18 @@ fn width_zero() {
 
 #[test]
 fn width_zero_strict() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("abc"),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("def"),
-        ],
-        GroupPolicy::Normal,
-    );
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("abc"),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("def"),
+    ]);
     let settings = LayoutSettings {
         min_width: 0,
-        max_width: 0, // <- !!!
-        width_constraint: LayoutWidthConstraint::Strict,
+        max_width: 0, // <- Enables below.
+        width_constraint: LayoutWidthConstraint::Strict, // <- !!!
         ..Default::default()
     };
+
     let result = doc.to_plaintext_with(settings).unwrap_err();
     expect![[r#"
         LayoutError(
@@ -101,18 +93,15 @@ fn width_zero_strict() {
 
 #[test]
 fn nesting_fit() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("["),
-            BoxDoc::nest(
-                2,
-                BoxDoc::sequence(vec![BoxDoc::breaker(" ", "\n"), BoxDoc::flat_text("x")]),
-            ),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("]"),
-        ],
-        GroupPolicy::Normal,
-    );
+    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("["),
+        BoxDoc::nest(
+            2,
+            BoxDoc::sequence(vec![BoxDoc::breaker(" ", "\n"), BoxDoc::flat_text("x")]),
+        ),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("]"),
+    ]);
     let width_of = |max_width| LayoutSettings {
         min_width: 0,
         max_width,

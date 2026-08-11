@@ -9,18 +9,24 @@
 
 use expect_test::expect;
 use groupnest::{
-    BoxDoc, GroupPolicy,
-    document::{Document, FlatFragment},
+    BoxDoc, GroupPolicy, document::{Document, FlatFragment}, layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
+};
+
+const SETTINGS : LayoutSettings = LayoutSettings {
+    initial_mode: LayoutMode::Broken,
+    min_width: 20,  // Default settings from here and below.
+    max_width: 100,
+    width_constraint: LayoutWidthConstraint::Relaxed,
 };
 
 #[test]
 fn strip_trailing() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![BoxDoc::from_text("a\n"), BoxDoc::nest(4, BoxDoc::nil())],
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::from_text("a\n"),
+        BoxDoc::nest(4, BoxDoc::nil())
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
         a
     "#]]
@@ -31,19 +37,16 @@ fn strip_trailing() {
 
 #[test]
 fn strip_trailing_empty_string() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::from_text("a\n"),
-            BoxDoc::nest(
-                4,
-                // Smart construction would canonize this, so we need to explicitly type it out.
-                BoxDoc(Box::new(Document::Text(FlatFragment::new("").unwrap()))),
-            ),
-        ],
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::from_text("a\n"),
+        BoxDoc::nest(
+            4,
+            // Smart construction would canonize this, so we need to explicitly type it out.
+            BoxDoc(Box::new(Document::Text(FlatFragment::new("").unwrap()))),
+        ),
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
         a
     "#]]
@@ -54,15 +57,12 @@ fn strip_trailing_empty_string() {
 
 #[test]
 fn premature_enter() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::from_text("a\n"),
-            BoxDoc::nest(4, BoxDoc::flat_text("b")),
-        ],
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::from_text("a\n"),
+        BoxDoc::nest(4, BoxDoc::flat_text("b")),
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
         a
             b"#]]
@@ -73,15 +73,12 @@ fn premature_enter() {
 
 #[test]
 fn premature_exit() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::nest(4, BoxDoc::from_text("b\n")),
-            BoxDoc::flat_text("c"),
-        ],
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::nest(4, BoxDoc::from_text("b\n")),
+        BoxDoc::flat_text("c"),
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
             b
         c"#]]
@@ -94,16 +91,13 @@ fn premature_exit() {
 /// The user-ergonomics test. This is how I expect most people to use this.
 /// Combination of [`premature_enter`] and [`premature_exit`].
 fn logical_newline() {
-    let doc: BoxDoc<()> = BoxDoc::group(
-        BoxDoc::sequence(vec![
-            BoxDoc::from_text("outer {\n"),
-            BoxDoc::nest(4, BoxDoc::from_text("inner\n")),
-            BoxDoc::flat_text("}"),
-        ]),
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::from_text("outer {\n"),
+        BoxDoc::nest(4, BoxDoc::from_text("inner\n")),
+        BoxDoc::flat_text("}"),
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
         outer {
             inner
@@ -119,20 +113,16 @@ fn logical_newline() {
 
 #[test]
 fn nest_around_multiline_break() {
-    let doc: BoxDoc<()> = BoxDoc::group(
-        BoxDoc::nest(
-            2,
-            BoxDoc::sequence(vec![
-                BoxDoc::flat_text("a "),
-                BoxDoc::breaker("", "x\ny"),
-                BoxDoc::flat_text(" b"),
-                BoxDoc::breaker("", "\nif you\nchange your mind"),
-            ]),
-        ),
-        GroupPolicy::ForceBreak,
+    let doc: BoxDoc<()> = BoxDoc::nest(2,
+        BoxDoc::sequence(vec![
+            BoxDoc::flat_text("a "),
+            BoxDoc::breaker("", "x\ny"),
+            BoxDoc::flat_text(" b"),
+            BoxDoc::breaker("", "\nif you\nchange your mind"),
+        ]),
     );
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     // This needs to be its own thing, because `expect_test::expect` strips up to the least amount of common indentation.
     let expected = "  a x\n  y b\n  if you\n  change your mind";
     assert_eq!(&expected, &result);
@@ -140,15 +130,12 @@ fn nest_around_multiline_break() {
 
 #[test]
 fn nest_in_current_line() {
-    let doc: BoxDoc<()> = BoxDoc::grouped_sequence(
-        vec![
-            BoxDoc::flat_text("a"),
-            BoxDoc::nest(2, BoxDoc::from_text("b\nc")),
-        ],
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::sequence(vec![
+        BoxDoc::flat_text("a"),
+        BoxDoc::nest(2, BoxDoc::from_text("b\nc")),
+    ]);
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     expect![[r#"
         ab
           c"#]]
@@ -157,12 +144,10 @@ fn nest_in_current_line() {
 
 #[test]
 fn nest_with_breaker_spaces() {
-    let doc: BoxDoc<()> = BoxDoc::group(
-        BoxDoc::nest(2, BoxDoc::breaker("", "a\n  b\n  c")),
-        GroupPolicy::ForceBreak,
-    );
+    let doc: BoxDoc<()> = BoxDoc::nest(2, 
+        BoxDoc::breaker("", "a\n  b\n  c"));
 
-    let result = doc.to_plaintext().unwrap();
+    let result = doc.to_plaintext_with(SETTINGS).unwrap();
     let expected = "  a\n    b\n    c";
     assert_eq!(&expected, &result);
 }

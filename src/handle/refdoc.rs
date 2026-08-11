@@ -110,7 +110,6 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
     ///         builder.flat_text("Some text here..."),
     ///         builder.flat_text("... and end."),
     ///     ]),
-    ///     GroupPolicy::Normal
     /// );
     /// ```
     ///
@@ -202,17 +201,21 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
     pub fn hard_linebreak(&self) -> RefDoc<'s, 'doc, A> {
         Document::hard_linebreak(|inner| self.alloc(inner))
     }
-    /// The smart constructor for a group with the specified policy.
-    pub fn group(&self, child: RefDoc<'s, 'doc, A>, policy: GroupPolicy) -> RefDoc<'s, 'doc, A> {
-        Document::group(child, policy, |inner| self.alloc(inner))
+    /// The smart constructor for a group, using the default policy.
+    pub fn group(&self, child: RefDoc<'s, 'doc, A>) -> RefDoc<'s, 'doc, A> {
+        Document::group(child, |inner| self.alloc(inner))
     }
-    /// The smart constructor for a grouped sequence.
-    pub fn grouped_sequence(
-        &self,
-        children: Vec<RefDoc<'s, 'doc, A>>,
-        policy: GroupPolicy,
-    ) -> RefDoc<'s, 'doc, A> {
-        Document::grouped_sequence(children, policy, |inner| self.alloc(inner))
+    /// The smart constructor for a group with the specified policy.
+    pub fn group_with(&self, policy: GroupPolicy, child: RefDoc<'s, 'doc, A>) -> RefDoc<'s, 'doc, A> {
+        Document::group_with(policy, child, |inner| self.alloc(inner))
+    }
+    /// The smart constructor for a grouped sequence, using the default policy.
+    pub fn grouped_sequence(&self, children: Vec<RefDoc<'s, 'doc, A>>) -> RefDoc<'s, 'doc, A> {
+        Document::grouped_sequence(children, |inner| self.alloc(inner))
+    }
+    /// The smart constructor for a grouped sequence with the specified policy.
+    pub fn grouped_sequence_with(&self, policy: GroupPolicy, children: Vec<RefDoc<'s, 'doc, A>>) -> RefDoc<'s, 'doc, A> {
+        Document::grouped_sequence_with(policy, children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a collection sequence.
     pub fn sequence(&self, children: Vec<RefDoc<'s, 'doc, A>>) -> RefDoc<'s, 'doc, A> {

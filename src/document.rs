@@ -358,10 +358,14 @@ where
 ///   /// The smart constructor for a hard linebreak
 ///   pub fn hard_linebreak() -> Self;
 ///
+///   /// The smart constructor for a group, using the default policy.
+///   pub fn group(child: Self) -> Self;
 ///   /// The smart constructor for a group with the specified policy.
-///   pub fn group(child: Self, policy: GroupPolicy) -> Self;
-///   /// The smart constructor for a grouped sequence.
-///   pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self;
+///   pub fn group_with(policy: GroupPolicy, child: Self) -> Self;
+///   /// The smart constructor for a grouped sequence, using the default policy.
+///   pub fn grouped_sequence(children: Vec<Self>) -> Self;
+///   /// The smart constructor for a grouped sequence with the specified policy.
+///   pub fn grouped_sequence_with(policy: GroupPolicy, children: Vec<Self>) -> Self;
 ///   /// The smart constructor for a collection sequence.
 ///   pub fn sequence(children: Vec<Self>) -> Self;
 ///   /// The smart constructor for a collection sequence with interspersion.
@@ -584,8 +588,15 @@ where
         alloc(Document::HardLinebreak)
     }
 
+    /// The smart constructor for a group using the default policy.
+    pub fn group<F>(child: D, alloc: F) -> D
+    where
+        F: FnMut(Self) -> D,
+    {
+        Self::group_with(GroupPolicy::Normal, child, alloc)
+    }
     /// The smart constructor for a group with the specified policy.
-    pub fn group<F>(child: D, policy: GroupPolicy, mut alloc: F) -> D
+    pub fn group_with<F>(policy: GroupPolicy, child: D, mut alloc: F) -> D
     where
         F: FnMut(Self) -> D,
     {
@@ -596,13 +607,20 @@ where
         // Every other case preferred the inner existing policy.
         alloc(Document::Group(policy, child))
     }
+    /// The smart constructor for a grouped collection sequence using the default policy.
+    pub fn grouped_sequence<F>(children: Vec<D>, alloc: F) -> D
+    where
+        F: FnMut(Self) -> D,
+    {
+        Self::grouped_sequence_with(GroupPolicy::Normal, children, alloc)
+    }
     /// The smart constructor for a grouped collection sequence with the specified policy.
-    pub fn grouped_sequence<F>(children: Vec<D>, policy: GroupPolicy, mut alloc: F) -> D
+    pub fn grouped_sequence_with<F>(policy: GroupPolicy, children: Vec<D>, mut alloc: F) -> D
     where
         F: FnMut(Self) -> D,
     {
         let sequence = Self::sequence(children, &mut alloc);
-        Self::group(sequence, policy, alloc)
+        Self::group_with(policy, sequence, alloc)
     }
 
     /// The smart constructor for a collection sequence.
@@ -690,7 +708,7 @@ mod test {
     use crate::BoxDoc;
     #[test]
     fn group_nil_no_break() {
-        let data: BoxDoc<()> = BoxDoc::group(BoxDoc::nil(), GroupPolicy::ForceBreak);
+        let data: BoxDoc<()> = BoxDoc::group_with(GroupPolicy::ForceBreak, BoxDoc::nil());
         assert!(!data.layout_mode_observable(GroupPolicy::Normal));
         assert_eq!(data.break_status(), BreakStatus::FlatLength(0));
     }
@@ -698,7 +716,6 @@ mod test {
     fn observable_override() {
         let data: BoxDoc<()> = BoxDoc::group(
             BoxDoc::breaker("somebody", "once\ntold\nme"),
-            GroupPolicy::Normal,
         );
         assert!(data.layout_mode_observable(GroupPolicy::FlatIfPossible));
         assert_eq!(data.break_status(), BreakStatus::FlatLength(8));

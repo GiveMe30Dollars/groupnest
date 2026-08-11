@@ -6,13 +6,13 @@ use groupnest::{BoxDoc, GroupPolicy};
 /// Yes, this is intended behaviour.
 #[test]
 fn break_indentation() {
-    let doc : BoxDoc<()> = BoxDoc::grouped_sequence(vec![
+    let doc : BoxDoc<()> = BoxDoc::grouped_sequence_with(GroupPolicy::ForceBreak, vec![
         BoxDoc::flat_text("{"),
         BoxDoc::nest(2,
             BoxDoc::breaker("unseen", "\n# indented!\n")
         ),
         BoxDoc::flat_text("}")
-    ], GroupPolicy::ForceBreak);
+    ]);
 
     let result = doc.to_plaintext().unwrap();
     expect![[r#"

@@ -50,7 +50,7 @@ impl SExp {
                         )
                     ),
                     BoxDoc::flat_text(")"),
-                ], GroupPolicy::Normal)
+                ])
             }
         }
     }
@@ -83,7 +83,7 @@ Then, turning that into a [`String`] is as easy as a method call:
 #                         )
 #                     ),
 #                     BoxDoc::flat_text(")"),
-#                 ], GroupPolicy::Normal)
+#                 ])
 #             }
 #         }
 #     }
@@ -129,7 +129,7 @@ We can also test that nesting and grouping behaves as we expected, by configurin
 #                         )
 #                     ),
 #                     BoxDoc::flat_text(")"),
-#                 ], GroupPolicy::Normal)
+#                 ])
 #             }
 #         }
 #     }

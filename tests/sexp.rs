@@ -35,20 +35,17 @@ impl SExp {
                     .iter()
                     .map(|child| child.to_doc(builder))
                     .collect::<Vec<_>>();
-                builder.grouped_sequence(
-                    vec![
-                        builder.flat_text("("),
-                        builder.nest(
-                            1,
-                            builder.sequence_intersperse_with(
-                                children_docs,
-                                builder.breaker(" ", "\n"),
-                            ),
+                builder.grouped_sequence(vec![
+                    builder.flat_text("("),
+                    builder.nest(
+                        1,
+                        builder.sequence_intersperse_with(
+                            children_docs,
+                            builder.breaker(" ", "\n"),
                         ),
-                        builder.flat_text(")"),
-                    ],
-                    GroupPolicy::Normal,
-                )
+                    ),
+                    builder.flat_text(")"),
+                ])
             }
         }
     }

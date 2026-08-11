@@ -131,13 +131,21 @@ impl<A> BoxDoc<A> {
     pub fn hard_linebreak() -> Self {
         Document::hard_linebreak(Into::into)
     }
-    /// The smart constructor for groups with a specified policy.
-    pub fn group(child: Self, policy: GroupPolicy) -> Self {
-        Document::group(child, policy, Into::into)
+    /// The smart constructor for a group, using the default policy.
+    pub fn group(child: Self) -> Self {
+        Document::group(child, Into::into)
     }
-    /// The smart constructor for a grouped sequence.
-    pub fn grouped_sequence(children: Vec<Self>, policy: GroupPolicy) -> Self {
-        Document::grouped_sequence(children, policy, Into::into)
+    /// The smart constructor for a group with the specified policy.
+    pub fn group_with(policy: GroupPolicy, child: Self) -> Self {
+        Document::group_with(policy, child, Into::into)
+    }
+    /// The smart constructor for a grouped sequence, using the default policy.
+    pub fn grouped_sequence(children: Vec<Self>) -> Self {
+        Document::grouped_sequence(children, Into::into)
+    }
+    /// The smart constructor for a grouped sequence with the specified policy.
+    pub fn grouped_sequence_with(policy: GroupPolicy, children: Vec<Self>) -> Self {
+        Document::grouped_sequence_with(policy, children, Into::into)
     }
     /// The smart constructor for a collection sequence.
     pub fn sequence(children: Vec<Self>) -> Self {
@@ -170,7 +178,8 @@ impl<A> BoxDoc<A> {
             Document::Text(fragment) => builder.alloc(Document::Text(fragment)),
             Document::Break(breaker) => builder.alloc(Document::Break(breaker)),
             Document::HardLinebreak => builder.hard_linebreak(),
-            Document::Group(policy, child) => builder.group(child.into_arc_with(builder), policy),
+            Document::Group(policy, child)
+                => builder.group_with(policy, child.into_arc_with(builder)),
             Document::Sequence(sequence) => {
                 let children = sequence
                     .into_children()
