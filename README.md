@@ -155,10 +155,6 @@ There's quite a few! A non-exhaustive list of existing options:
 - [`pprint`](https://crates.io/crates/pprint): *In addition* to being a document constructor, also provides derivable pretty-printing for Rust datatypes. Basically a neater version of [`Debug`], neat!
 - [`sparkly`](https://crates.io/crates/sparkly): Built-in terminal and ANSI coloring support.
 
-### Will This Be On [`crates.io`](https://crates.io/)?
-
-Maybe, probably not.
-
 [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
 [`Document`]: /src/document.rs
 [`RefDoc`]: /src/handle/refdoc.rs
