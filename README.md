@@ -29,7 +29,7 @@ pub enum SExp {
 We define a conversion to a [`Document`] type. For simplicity we'll export an [`BoxDoc`], though these patterns also work for builder-dependent [`Document`] types like [`RefDoc`] and [`ArcDoc`].
 
 ```rust
-use groupnest::{BoxDoc, GroupPolicy};
+use groupnest::BoxDoc;
 
 impl SExp {
     pub fn to_doc(&self) -> BoxDoc<()> {
@@ -48,7 +48,7 @@ impl SExp {
                         )
                     ),
                     BoxDoc::flat_text(")"),
-                ], GroupPolicy::Normal)
+                ])
             }
         }
     }

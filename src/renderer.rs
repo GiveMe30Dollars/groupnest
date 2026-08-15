@@ -167,12 +167,12 @@ pub trait Renderer<A> {
     /// This may be used to flush buffers etc.
     fn finish(&mut self) -> Result<Self::Finish, Self::Error>;
 
-    /// Consumes a render event iterator.
+    /// Consumes a render event collection or iterator.
     fn consume<'p>(
         &mut self,
-        iterator: impl Iterator<Item = RenderEvent<'p, A>>,
+        events: impl IntoIterator<Item = RenderEvent<'p, A>>,
     ) -> Result<Self::Finish, Self::Error> {
-        for event in iterator {
+        for event in events {
             self.receive(event)?;
         }
         self.finish()

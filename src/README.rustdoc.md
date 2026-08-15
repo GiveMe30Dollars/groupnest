@@ -27,7 +27,7 @@ pub enum SExp {
 We define a conversion to a [`Document`] type. For simplicity we'll export an [`BoxDoc`], though these patterns also work for builder-dependent [`Document`] types like [`RefDoc`] and [`ArcDoc`].
 
 ```rust
-use groupnest::{BoxDoc, GroupPolicy};
+use groupnest::BoxDoc;
 # pub enum SExp {
 #     Atom(u32),
 #     List(Vec<SExp>),
@@ -60,7 +60,7 @@ impl SExp {
 Then, turning that into a [`String`] is as easy as a method call:
 
 ```rust
-# use groupnest::{BoxDoc, GroupPolicy};
+# use groupnest::BoxDoc;
 # pub enum SExp {
 #     Atom(u32),
 #     List(Vec<SExp>),
@@ -106,7 +106,7 @@ Then, turning that into a [`String`] is as easy as a method call:
 We can also test that nesting and grouping behaves as we expected, by configuring via [`LayoutSettings`].
 
 ```rust
-# use groupnest::{BoxDoc, GroupPolicy};
+# use groupnest::BoxDoc;
 # pub enum SExp {
 #     Atom(u32),
 #     List(Vec<SExp>),

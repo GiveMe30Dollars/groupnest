@@ -6,13 +6,16 @@ edition = "2024"
 [dependencies]
 by_address = "1.2.1"
 derive_more = {version = "2.1.1", features = ["as_ref", "from", "into"]}
-expect-test = "1.5.1"
 id-arena = "2.3.0"
 serde = {version = "1.0.229", optional = true, features = ["derive", "rc"]}
 termcolor = {version = "1.4.1", optional = true}
 thiserror = "2.0.19"
 typed-arena = "2.0.2"
 unicode-width = "0.2.2"
+
+[dev-dependencies]
+expect-test = "1.5.1"
+indexmap = "2.14.0"
 
 [features]
 termcolor = ["dep:termcolor"]

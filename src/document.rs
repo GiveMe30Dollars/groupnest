@@ -317,7 +317,15 @@ where
 /// Generally, a `Document` should be treated as immutable upon construction.
 /// Subsequent passes may read from the existing `Document` and generate a modified copy if desired.
 ///
-/// Do not construct this type directly.
+/// This type is not intended to be constructed directly.
+/// 
+/// ## Note on Whitespace
+/// 
+/// Text-based nodes are emitted verbatim.
+/// In other words, whitespace in text is always preserved, is not treated as padding by [`Document::Nest`] nodes,
+/// and lines containing whitespace-only text will not be treated as logical line starts.
+/// 
+/// Thus, it is discouraged to use whitespace-only text to add indentation. Prefer [`Document::Nest`] where applicable.
 ///
 /// ## Note on Smart Constructors
 ///
@@ -382,12 +390,12 @@ where
 ///   This would likely require defining and applying the `alloc` closure, which in some cases is just [`Into::into`].
 ///
 ///
-/// ## Note on Canonical Representation
+/// ## Note on Canonical Representation and [`Eq`]
 ///
 /// The builders exposed here do not inherently build canonical documents.
 /// In other words, [`Eq`] functions on documents for structural equivalence, *not* semantic equivalence.
 ///
-/// There are many ways to express equivalent documents,
+/// There are many ways to express semantically-equivalent documents,
 /// and while a best-effort attempt is made to reduce or flatten equivalent forms,
 /// some transformations are not possible without global inspection and reconstruction of the document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -396,9 +404,15 @@ pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
     /// Text that *must* be displayed flat. Contains no newlines.
+    /// 
+    /// Text is emitted verbatim. In particular, whitespace is not treated as layout padding,
+    /// and therefore is not modified by surrounding `Nest` operations.
     Text(FlatFragment<'s>),
     /// A breaking node, which renders differently based on whether the current layout mode is flat or broken.
     /// Also used to express soft linebreaks with the form `Break(flat = "", broken = "\n")`.
+    /// 
+    /// Text is emitted verbatim. In particular, whitespace is not treated as layout padding,
+    /// and therefore is not modified by surrounding `Nest` operations.
     ///
     /// Respects indentation added by enclosing `Nest` nodes.
     Break(Break<'s>),
@@ -413,17 +427,19 @@ pub enum Document<'s, D, A = ()> {
     /// A sequence containing a collection of children.
     ///
     /// This node by itself does *not* introduce a layout decision point. Refer to [`Document::Group`].
-    /// A common usage pattern is `Group(policy = _, Sequence(...))` for introducing a sequence with a decisioin point.
+    /// 
+    /// A common usage pattern is `Group(policy = _, Sequence(...))` for introducing a sequence with a decisioin point,
+    /// and is represented by [`Document::grouped_sequence`] and [`Document::grouped_sequence_with`] smart construction.
     Sequence(Sequence<D>),
     /// A node that, if in broken layout mode, will add indentation to its child.
     ///
-    /// The additional indentation applies only on logical newlines;
-    /// the current line will be unaffected by entering or exiting of a `Nest` scope if it already contains non-padding text.
+    /// `Nest` affects indentation at logical line starts.
+    /// Verbatim whitespace emitted by text-based constructs is not considered indentation and is left unchanged.
     Nest(usize, D),
-    /// An annotation.
+    /// An annotation, applied to the inner document.
     ///
-    /// The layout algorithm assumes that annotations do not affect layout decisions,
-    /// and defers rendering choices to respective [`Renderer`](crate::Renderer) implementors.
+    /// Annotations do not participate in the layout algorithm, and emits annotation delimiters in the render event stream.
+    /// Rendering choices for specific annotation types are deferred to respective [`Renderer`](crate::Renderer) implementors.
     Annotation(Box<A>, D),
 }
 impl<'s, D, A> Document<'s, D, A>

@@ -14,10 +14,12 @@
 //! >  (2 3)
 //! >  (4 5 6))
 //! > ```
+//! 
+//! Uses RefDoc and RefDocBuilder.
 
 use expect_test::expect;
 use groupnest::{
-    Arena, GroupPolicy, RefDoc, RefDocBuilder,
+    Arena, RefDoc, RefDocBuilder,
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
     renderer::RenderError,
 };

@@ -2,7 +2,7 @@
 
 use expect_test::expect;
 use groupnest::{
-    BoxDoc, GroupPolicy,
+    BoxDoc,
     document::FlatFragment,
     layout::{LayoutSettings, LayoutWidthConstraint},
 };

@@ -9,7 +9,9 @@
 
 use expect_test::expect;
 use groupnest::{
-    BoxDoc, GroupPolicy, document::{Document, FlatFragment}, layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
+    BoxDoc,
+    document::{Document, FlatFragment},
+    layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
 };
 
 const SETTINGS : LayoutSettings = LayoutSettings {
