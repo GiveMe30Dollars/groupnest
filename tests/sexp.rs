@@ -14,7 +14,7 @@
 //! >  (2 3)
 //! >  (4 5 6))
 //! > ```
-//! 
+//!
 //! Uses RefDoc and RefDocBuilder.
 
 use expect_test::expect;
@@ -41,10 +41,8 @@ impl SExp {
                     builder.flat_text("("),
                     builder.nest(
                         1,
-                        builder.sequence_intersperse_with(
-                            children_docs,
-                            builder.breaker(" ", "\n"),
-                        ),
+                        builder
+                            .sequence_intersperse_with(children_docs, builder.breaker(" ", "\n")),
                     ),
                     builder.flat_text(")"),
                 ])

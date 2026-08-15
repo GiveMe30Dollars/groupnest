@@ -14,9 +14,9 @@ use groupnest::{
     layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
 };
 
-const SETTINGS : LayoutSettings = LayoutSettings {
+const SETTINGS: LayoutSettings = LayoutSettings {
     initial_mode: LayoutMode::Broken,
-    min_width: 20,  // Default settings from here and below.
+    min_width: 20, // Default settings from here and below.
     max_width: 100,
     width_constraint: LayoutWidthConstraint::Relaxed,
 };
@@ -25,7 +25,7 @@ const SETTINGS : LayoutSettings = LayoutSettings {
 fn strip_trailing() {
     let doc: BoxDoc<()> = BoxDoc::sequence(vec![
         BoxDoc::from_text("a\n"),
-        BoxDoc::nest(4, BoxDoc::nil())
+        BoxDoc::nest(4, BoxDoc::nil()),
     ]);
 
     let result = doc.to_plaintext_with(SETTINGS).unwrap();
@@ -115,7 +115,8 @@ fn logical_newline() {
 
 #[test]
 fn nest_around_multiline_break() {
-    let doc: BoxDoc<()> = BoxDoc::nest(2,
+    let doc: BoxDoc<()> = BoxDoc::nest(
+        2,
         BoxDoc::sequence(vec![
             BoxDoc::flat_text("a "),
             BoxDoc::breaker("", "x\ny"),
@@ -146,8 +147,7 @@ fn nest_in_current_line() {
 
 #[test]
 fn nest_with_breaker_spaces() {
-    let doc: BoxDoc<()> = BoxDoc::nest(2, 
-        BoxDoc::breaker("", "a\n  b\n  c"));
+    let doc: BoxDoc<()> = BoxDoc::nest(2, BoxDoc::breaker("", "a\n  b\n  c"));
 
     let result = doc.to_plaintext_with(SETTINGS).unwrap();
     let expected = "  a\n    b\n    c";

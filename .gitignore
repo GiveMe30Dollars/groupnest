@@ -1,2 +1,5 @@
 /target
 /.vscode
+
+# License Audit
+.license_report.md

@@ -1,8 +1,8 @@
 mod width_boundary;
 
-mod hardlinebreak;
+mod annotations;
 mod breaker;
 mod group;
+mod hardlinebreak;
 mod nest;
 mod nil;
-mod annotations;

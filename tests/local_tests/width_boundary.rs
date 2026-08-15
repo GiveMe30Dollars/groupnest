@@ -73,7 +73,7 @@ fn width_zero_strict() {
     ]);
     let settings = LayoutSettings {
         min_width: 0,
-        max_width: 0, // <- Enables below.
+        max_width: 0,                                    // <- Enables below.
         width_constraint: LayoutWidthConstraint::Strict, // <- !!!
         ..Default::default()
     };

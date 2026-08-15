@@ -178,8 +178,9 @@ impl<A> BoxDoc<A> {
             Document::Text(fragment) => builder.alloc(Document::Text(fragment)),
             Document::Break(breaker) => builder.alloc(Document::Break(breaker)),
             Document::HardLinebreak => builder.hard_linebreak(),
-            Document::Group(policy, child)
-                => builder.group_with(policy, child.into_arc_with(builder)),
+            Document::Group(policy, child) => {
+                builder.group_with(policy, child.into_arc_with(builder))
+            }
             Document::Sequence(sequence) => {
                 let children = sequence
                     .into_children()

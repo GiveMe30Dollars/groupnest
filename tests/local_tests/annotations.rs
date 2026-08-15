@@ -6,10 +6,7 @@ use groupnest::BoxDoc;
 /// Annotations apply to anything within the inner document, even Nil.
 #[test]
 fn annotation_nil() {
-    let doc: BoxDoc<_> = BoxDoc::annotation(
-        String::from("bold!"), 
-        BoxDoc::nil()
-    );
+    let doc: BoxDoc<_> = BoxDoc::annotation(String::from("bold!"), BoxDoc::nil());
     let events = doc.as_layout().collect::<Vec<_>>();
 
     assert!(!events.is_empty());
@@ -20,5 +17,6 @@ fn annotation_nil() {
             ),
             PopAnnotation,
         ]
-    "#]].assert_debug_eq(&events);
+    "#]]
+    .assert_debug_eq(&events);
 }

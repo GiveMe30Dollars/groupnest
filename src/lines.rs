@@ -159,7 +159,7 @@ mod test {
 
     #[test]
     fn newline_identification() {
-         const NEWLINE_CHARS: [char; 7] = [
+        const NEWLINE_CHARS: [char; 7] = [
             '\r',       // CR, Carriage Return ("\r\n" is considered one linebreak, handled separately)
             '\n',       // NL, Newline
             '\u{000B}', // VT, Line Tabulation
@@ -168,12 +168,15 @@ mod test {
             '\u{2028}', // LS, Line Separator
             '\u{2029}', // PS, Paragraph Separator
         ];
-        const CRLF : &str = "\r\n";
-        
+        const CRLF: &str = "\r\n";
+
         assert_eq!(linebreak_len(CRLF, 0), Some(2));
-        let mut buffer = [0; 4]; 
+        let mut buffer = [0; 4];
         for ch in NEWLINE_CHARS {
-            assert_eq!(linebreak_len(ch.encode_utf8(&mut buffer), 0), Some(ch.len_utf8()));
+            assert_eq!(
+                linebreak_len(ch.encode_utf8(&mut buffer), 0),
+                Some(ch.len_utf8())
+            );
         }
     }
 

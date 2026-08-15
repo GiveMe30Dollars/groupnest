@@ -2,7 +2,9 @@
 
 use expect_test::expect;
 use groupnest::{
-    BoxDoc, GroupPolicy, document::{Document, Sequence}, layout::LayoutSettings,
+    BoxDoc, GroupPolicy,
+    document::{Document, Sequence},
+    layout::LayoutSettings,
 };
 
 #[test]
@@ -33,13 +35,11 @@ fn nil_group() {
 
 #[test]
 fn nested_groups() {
-    let doc: BoxDoc<()> = BoxDoc::group(
-        BoxDoc::grouped_sequence(vec![
-            BoxDoc::flat_text("a"),
-            BoxDoc::breaker(" ", "\n"),
-            BoxDoc::flat_text("b"),
-        ]),
-    );
+    let doc: BoxDoc<()> = BoxDoc::group(BoxDoc::grouped_sequence(vec![
+        BoxDoc::flat_text("a"),
+        BoxDoc::breaker(" ", "\n"),
+        BoxDoc::flat_text("b"),
+    ]));
 
     let width_of = |max_width| LayoutSettings {
         min_width: 0,
@@ -53,24 +53,27 @@ fn nested_groups() {
     let result_broken = doc.to_plaintext_with(width_of(2)).unwrap();
     expect![[r#"
         a
-        b"#]].assert_eq(&result_broken);
+        b"#]]
+    .assert_eq(&result_broken);
 }
 
 #[test]
 
 fn force_break() {
     let doc: BoxDoc<()> = BoxDoc::grouped_sequence_with(
-        GroupPolicy::ForceBreak, 
+        GroupPolicy::ForceBreak,
         vec![
             BoxDoc::flat_text("abc"),
             BoxDoc::breaker(" ", "\n"),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let result = doc.to_plaintext().unwrap();
     expect![[r#"
         abc
-        def"#]].assert_eq(&result);
+        def"#]]
+    .assert_eq(&result);
 }
 
 #[test]
@@ -82,7 +85,8 @@ fn flat_if_possible() {
             BoxDoc::flat_text("abc"),
             BoxDoc::breaker(" ", "\n"),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -102,7 +106,8 @@ fn flat_against_hardline() {
             BoxDoc::flat_text("abc"),
             BoxDoc::hard_linebreak(),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -113,21 +118,20 @@ fn flat_against_hardline() {
     let result = doc.to_plaintext_with(settings).unwrap();
     expect![[r#"
         abc
-        def"#]].assert_eq(&result);
+        def"#]]
+    .assert_eq(&result);
 }
 
 #[test]
 fn flat_against_forced_breaker() {
     let doc: BoxDoc<()> = BoxDoc::grouped_sequence_with(
-        GroupPolicy::FlatIfPossible, 
+        GroupPolicy::FlatIfPossible,
         vec![
             BoxDoc::flat_text("abc"),
-            BoxDoc::group_with(
-                GroupPolicy::ForceBreak,
-                BoxDoc::breaker(" ", "\n")
-            ),
+            BoxDoc::group_with(GroupPolicy::ForceBreak, BoxDoc::breaker(" ", "\n")),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -138,7 +142,8 @@ fn flat_against_forced_breaker() {
     let result = doc.to_plaintext_with(settings).unwrap();
     expect![[r#"
         abc
-        def"#]].assert_eq(&result);
+        def"#]]
+    .assert_eq(&result);
 }
 
 #[test]
@@ -147,12 +152,10 @@ fn flat_overrides_inner_normal() {
         GroupPolicy::FlatIfPossible,
         vec![
             BoxDoc::flat_text("abc"),
-            BoxDoc::group_with(
-                GroupPolicy::Normal,
-                BoxDoc::breaker(" ", "\n")
-            ),
+            BoxDoc::group_with(GroupPolicy::Normal, BoxDoc::breaker(" ", "\n")),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -170,12 +173,10 @@ fn flat_against_unobservable_group() {
         GroupPolicy::FlatIfPossible,
         vec![
             BoxDoc::flat_text("abc"),
-            BoxDoc::group_with(
-                GroupPolicy::ForceBreak,
-                BoxDoc::flat_text(" ")
-            ),
+            BoxDoc::group_with(GroupPolicy::ForceBreak, BoxDoc::flat_text(" ")),
             BoxDoc::flat_text("def"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -194,13 +195,14 @@ fn flat_against_normal_breaker_in_double_groups() {
         GroupPolicy::FlatIfPossible,
         vec![
             BoxDoc::flat_text("abc"),
-            BoxDoc::group_with(GroupPolicy::ForceBreak,
-                BoxDoc::group_with(GroupPolicy::Normal,
-                    BoxDoc::breaker(" ", "\n")
-            )),
+            BoxDoc::group_with(
+                GroupPolicy::ForceBreak,
+                BoxDoc::group_with(GroupPolicy::Normal, BoxDoc::breaker(" ", "\n")),
+            ),
             BoxDoc::flat_text("def"),
             BoxDoc::breaker(".", "\n"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -219,13 +221,14 @@ fn flat_against_forced_breaker_in_double_groups() {
         GroupPolicy::FlatIfPossible,
         vec![
             BoxDoc::flat_text("abc"),
-            BoxDoc::group_with(GroupPolicy::Normal,
-                BoxDoc::group_with(GroupPolicy::ForceBreak,
-                    BoxDoc::breaker(" ", "\n")
-            )),
+            BoxDoc::group_with(
+                GroupPolicy::Normal,
+                BoxDoc::group_with(GroupPolicy::ForceBreak, BoxDoc::breaker(" ", "\n")),
+            ),
             BoxDoc::flat_text("def"),
             BoxDoc::breaker(".", "\n"),
-        ]);
+        ],
+    );
 
     let settings = LayoutSettings {
         min_width: 0,
@@ -237,5 +240,6 @@ fn flat_against_forced_breaker_in_double_groups() {
     expect![[r#"
         abc
         def
-    "#]].assert_eq(&result);
+    "#]]
+    .assert_eq(&result);
 }

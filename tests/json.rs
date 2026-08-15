@@ -2,16 +2,19 @@
 //! a demonstration of a formatter of structured data.
 //! The scope of this test does not include JSON parsing,
 //! but does show how this crate can generate round-trip source text if parsing is implemented.
-//! 
+//!
 //! Uses ArcDoc and ArcDocBuilder.
 
 use expect_test::expect;
-use groupnest::{ArcDoc, ArcDocBuilder, layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint}};
+use groupnest::{
+    ArcDoc, ArcDocBuilder,
+    layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
+};
 use indexmap::{IndexMap, indexmap};
 
 struct Formatter {
-    nest_amount : usize,
-    has_trailing_comma : bool,
+    nest_amount: usize,
+    has_trailing_comma: bool,
 }
 
 enum Json {
@@ -35,48 +38,68 @@ impl Formatter {
     fn to_doc(&self, json: &Json, builder: &ArcDocBuilder<()>) -> ArcDoc<()> {
         match json {
             Json::Null => builder.flat_text("null"),
-            Json::Boolean(value) => builder.flat_text(
-                if *value { "true" } else { "false" }
-            ),
+            Json::Boolean(value) => builder.flat_text(if *value { "true" } else { "false" }),
             Json::Number(value) => builder.flat_text(value.to_string()),
             Json::String(value) => builder.flat_text(format!("{value:?}")),
+
             Json::Array(jsons) => {
-                let children_docs = jsons.iter()
+                let children_docs = jsons
+                    .iter()
                     .map(|child| self.to_doc(child, builder))
                     .collect::<Vec<_>>();
                 builder.grouped_sequence(vec![
                     builder.breaker("[", "[\n"),
-                    builder.nest(self.nest_amount,
-                        builder.sequence_intersperse_with(
-                            children_docs,
-                            builder.breaker(", ", ",\n")
-                    )),
-                    builder.breaker("]", if self.has_trailing_comma {",\n]"} else {"\n}"}),
+                    builder.nest(
+                        self.nest_amount,
+                        builder
+                            .sequence_intersperse_with(children_docs, builder.breaker(", ", ",\n")),
+                    ),
+                    builder.breaker(
+                        "]",
+                        if self.has_trailing_comma {
+                            ",\n]"
+                        } else {
+                            "\n}"
+                        },
+                    ),
                 ])
-            },
+            }
+
             Json::Object(map) => {
-                let children_entries = map.iter()
-                    .map(|(key, value)| builder.sequence(vec![
-                        builder.flat_text(format!("{key:?}")),
-                        builder.flat_text(": "),
-                        self.to_doc(value, builder),
-                    ]))
+                let children_entries = map
+                    .iter()
+                    .map(|(key, value)| {
+                        builder.sequence(vec![
+                            builder.flat_text(format!("{key:?}")),
+                            builder.flat_text(": "),
+                            self.to_doc(value, builder),
+                        ])
+                    })
                     .collect::<Vec<_>>();
                 builder.grouped_sequence(vec![
                     builder.breaker("{", "{\n"),
-                    builder.nest(self.nest_amount,
+                    builder.nest(
+                        self.nest_amount,
                         builder.sequence_intersperse_with(
                             children_entries,
-                            builder.breaker(", ", ",\n")
-                    )),
-                    builder.breaker("}", if self.has_trailing_comma {",\n}"} else {"\n}"}),
+                            builder.breaker(", ", ",\n"),
+                        ),
+                    ),
+                    builder.breaker(
+                        "}",
+                        if self.has_trailing_comma {
+                            ",\n}"
+                        } else {
+                            "\n}"
+                        },
+                    ),
                 ])
-            },
+            }
         }
     }
 }
 
-const NARROW : LayoutSettings = LayoutSettings {
+const NARROW: LayoutSettings = LayoutSettings {
     initial_mode: LayoutMode::Broken,
     min_width: 0,
     max_width: 10,
@@ -85,30 +108,21 @@ const NARROW : LayoutSettings = LayoutSettings {
 
 #[test]
 fn json_null() {
-    let doc = Formatter::STRICT.to_doc(
-        &Json::Null,
-        &ArcDocBuilder::new()
-    );
+    let doc = Formatter::STRICT.to_doc(&Json::Null, &ArcDocBuilder::new());
     let result = doc.to_plaintext().unwrap();
     expect!["null"].assert_eq(&result);
 }
 
 #[test]
 fn json_true() {
-    let doc = Formatter::STRICT.to_doc(
-        &Json::Boolean(true),
-        &ArcDocBuilder::new()
-    );
+    let doc = Formatter::STRICT.to_doc(&Json::Boolean(true), &ArcDocBuilder::new());
     let result = doc.to_plaintext().unwrap();
     expect!["true"].assert_eq(&result);
 }
 
 #[test]
 fn json_false() {
-    let doc = Formatter::STRICT.to_doc(
-        &Json::Boolean(false),
-        &ArcDocBuilder::new()
-    );
+    let doc = Formatter::STRICT.to_doc(&Json::Boolean(false), &ArcDocBuilder::new());
     let result = doc.to_plaintext().unwrap();
     expect!["false"].assert_eq(&result);
 }
@@ -116,8 +130,8 @@ fn json_false() {
 #[test]
 fn json_string() {
     let doc = Formatter::STRICT.to_doc(
-        &Json::String(String::from("Lorem ipsum\ndolor sit amet")), 
-        &ArcDocBuilder::new()
+        &Json::String(String::from("Lorem ipsum\ndolor sit amet")),
+        &ArcDocBuilder::new(),
     );
     let result = doc.to_plaintext().unwrap();
     expect![[r#""Lorem ipsum\ndolor sit amet""#]].assert_eq(&result);
@@ -126,8 +140,8 @@ fn json_string() {
 #[test]
 fn json_array() {
     let doc = Formatter::STRICT.to_doc(
-        &Json::Array((0..5).map(|i| Json::Number(i as f64)).collect()), 
-        &ArcDocBuilder::new()
+        &Json::Array((0..5).map(|i| Json::Number(i as f64)).collect()),
+        &ArcDocBuilder::new(),
     );
 
     let inline = doc.to_plaintext().unwrap();
@@ -141,7 +155,8 @@ fn json_array() {
           2,
           3,
           4
-        }"#]].assert_eq(&multiline);
+        }"#]]
+    .assert_eq(&multiline);
 }
 
 #[test]
@@ -151,8 +166,8 @@ fn json_object() {
             String::from("name") => Json::String(String::from("John")),
             String::from("age") => Json::Number(30.0),
             String::from("city") => Json::String(String::from("New York")),
-        }), 
-        &ArcDocBuilder::new()
+        }),
+        &ArcDocBuilder::new(),
     );
 
     let inline = doc.to_plaintext().unwrap();
@@ -164,7 +179,8 @@ fn json_object() {
           "name": "John",
           "age": 30,
           "city": "New York"
-        }"#]].assert_eq(&multiline);
+        }"#]]
+    .assert_eq(&multiline);
 }
 
 #[test]
@@ -224,7 +240,8 @@ fn json_mix() {
               }
             }
           }
-        }"#]].assert_eq(&strict_result);
+        }"#]]
+    .assert_eq(&strict_result);
 
     let json5 = Formatter::JSON5.to_doc(&json, &ArcDocBuilder::new());
     let json5_result = json5.to_plaintext_with(SETTINGS).unwrap();
@@ -241,5 +258,6 @@ fn json_mix() {
               ],
             },
           },
-        }"#]].assert_eq(&json5_result);
+        }"#]]
+    .assert_eq(&json5_result);
 }

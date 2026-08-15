@@ -206,7 +206,11 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
         Document::group(child, |inner| self.alloc(inner))
     }
     /// The smart constructor for a group with the specified policy.
-    pub fn group_with(&self, policy: GroupPolicy, child: RefDoc<'s, 'doc, A>) -> RefDoc<'s, 'doc, A> {
+    pub fn group_with(
+        &self,
+        policy: GroupPolicy,
+        child: RefDoc<'s, 'doc, A>,
+    ) -> RefDoc<'s, 'doc, A> {
         Document::group_with(policy, child, |inner| self.alloc(inner))
     }
     /// The smart constructor for a grouped sequence, using the default policy.
@@ -214,7 +218,11 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
         Document::grouped_sequence(children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a grouped sequence with the specified policy.
-    pub fn grouped_sequence_with(&self, policy: GroupPolicy, children: Vec<RefDoc<'s, 'doc, A>>) -> RefDoc<'s, 'doc, A> {
+    pub fn grouped_sequence_with(
+        &self,
+        policy: GroupPolicy,
+        children: Vec<RefDoc<'s, 'doc, A>>,
+    ) -> RefDoc<'s, 'doc, A> {
         Document::grouped_sequence_with(policy, children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a collection sequence.

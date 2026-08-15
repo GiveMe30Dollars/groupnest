@@ -318,13 +318,13 @@ where
 /// Subsequent passes may read from the existing `Document` and generate a modified copy if desired.
 ///
 /// This type is not intended to be constructed directly.
-/// 
+///
 /// ## Note on Whitespace
-/// 
+///
 /// Text-based nodes are emitted verbatim.
 /// In other words, whitespace in text is always preserved, is not treated as padding by [`Document::Nest`] nodes,
 /// and lines containing whitespace-only text will not be treated as logical line starts.
-/// 
+///
 /// Thus, it is discouraged to use whitespace-only text to add indentation. Prefer [`Document::Nest`] where applicable.
 ///
 /// ## Note on Smart Constructors
@@ -404,13 +404,13 @@ pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
     /// Text that *must* be displayed flat. Contains no newlines.
-    /// 
+    ///
     /// Text is emitted verbatim. In particular, whitespace is not treated as layout padding,
     /// and therefore is not modified by surrounding `Nest` operations.
     Text(FlatFragment<'s>),
     /// A breaking node, which renders differently based on whether the current layout mode is flat or broken.
     /// Also used to express soft linebreaks with the form `Break(flat = "", broken = "\n")`.
-    /// 
+    ///
     /// Text is emitted verbatim. In particular, whitespace is not treated as layout padding,
     /// and therefore is not modified by surrounding `Nest` operations.
     ///
@@ -427,7 +427,7 @@ pub enum Document<'s, D, A = ()> {
     /// A sequence containing a collection of children.
     ///
     /// This node by itself does *not* introduce a layout decision point. Refer to [`Document::Group`].
-    /// 
+    ///
     /// A common usage pattern is `Group(policy = _, Sequence(...))` for introducing a sequence with a decisioin point,
     /// and is represented by [`Document::grouped_sequence`] and [`Document::grouped_sequence_with`] smart construction.
     Sequence(Sequence<D>),
@@ -730,9 +730,7 @@ mod test {
     }
     #[test]
     fn observable_override() {
-        let data: BoxDoc<()> = BoxDoc::group(
-            BoxDoc::breaker("somebody", "once\ntold\nme"),
-        );
+        let data: BoxDoc<()> = BoxDoc::group(BoxDoc::breaker("somebody", "once\ntold\nme"));
         assert!(data.layout_mode_observable(GroupPolicy::FlatIfPossible));
         assert_eq!(data.break_status(), BreakStatus::FlatLength(8));
     }

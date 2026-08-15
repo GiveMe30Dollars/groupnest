@@ -1,9 +1,13 @@
 //! Test relating to the augmented Break node.
 
 use expect_test::expect;
-use groupnest::{BoxDoc, document::Break, layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint}};
+use groupnest::{
+    BoxDoc,
+    document::Break,
+    layout::{LayoutMode, LayoutSettings, LayoutWidthConstraint},
+};
 
-const BREAK_FIRST : LayoutSettings = LayoutSettings {
+const BREAK_FIRST: LayoutSettings = LayoutSettings {
     initial_mode: LayoutMode::Broken,
     min_width: 20,
     max_width: 100,
@@ -20,7 +24,8 @@ fn flat_payload_invariant() {
                 "CRLF\r\n",
             ),
         )
-    "#]].assert_debug_eq(&Break::new("CRLF\r\n", "\n").unwrap_err());
+    "#]]
+    .assert_debug_eq(&Break::new("CRLF\r\n", "\n").unwrap_err());
     expect![[r#"
         FragmentError(
             ContainsTab(
@@ -30,7 +35,8 @@ fn flat_payload_invariant() {
                 ),
             ),
         )
-    "#]].assert_debug_eq(&Break::new("tab!\t", "\n").unwrap_err());
+    "#]]
+    .assert_debug_eq(&Break::new("tab!\t", "\n").unwrap_err());
 }
 
 #[test]
@@ -39,7 +45,8 @@ fn breaker_prefix() {
     let result = doc.to_plaintext_with(BREAK_FIRST).unwrap();
     expect![[r#"
         ;
-    "#]].assert_eq(&result);
+    "#]]
+    .assert_eq(&result);
 }
 
 #[test]
@@ -48,14 +55,16 @@ fn breaker_suffix() {
     let result = doc.to_plaintext_with(BREAK_FIRST).unwrap();
     expect![[r#"
 
-        ;"#]].assert_eq(&result);
+        ;"#]]
+    .assert_eq(&result);
 }
 
 #[test]
 fn break_payload_invariant() {
     expect![[r#"
         BrokenPayloadHasNoNewline
-    "#]].assert_debug_eq(&Break::new("", "no newline!").unwrap_err());
+    "#]]
+    .assert_debug_eq(&Break::new("", "no newline!").unwrap_err());
     expect![[r#"
         FragmentError(
             ContainsTab(
@@ -65,7 +74,8 @@ fn break_payload_invariant() {
                 ),
             ),
         )
-    "#]].assert_debug_eq(&Break::new("", "tab!\n\t").unwrap_err());
+    "#]]
+    .assert_debug_eq(&Break::new("", "tab!\n\t").unwrap_err());
 }
 
 /// Yes, this is intended behaviour.
@@ -73,15 +83,14 @@ fn break_payload_invariant() {
 fn breaker_infix_indentation() {
     let doc: BoxDoc<()> = BoxDoc::sequence(vec![
         BoxDoc::flat_text("{"),
-        BoxDoc::nest(2,
-            BoxDoc::breaker("unseen", "\n// indented!\n")
-        ),
-        BoxDoc::flat_text("}")
+        BoxDoc::nest(2, BoxDoc::breaker("unseen", "\n// indented!\n")),
+        BoxDoc::flat_text("}"),
     ]);
 
     let result = doc.to_plaintext_with(BREAK_FIRST).unwrap();
     expect![[r#"
         {
           // indented!
-        }"#]].assert_eq(&result);
+        }"#]]
+    .assert_eq(&result);
 }

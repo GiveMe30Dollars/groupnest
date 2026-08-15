@@ -193,8 +193,7 @@ impl<A> ArcDoc<A> {
             Document::Break(breaker) => BoxDoc(Box::new(Document::Break(breaker.clone()))),
             Document::HardLinebreak => BoxDoc::hard_linebreak(),
 
-            Document::Group(policy, child)
-                => BoxDoc::group_with(*policy, child.to_box()),
+            Document::Group(policy, child) => BoxDoc::group_with(*policy, child.to_box()),
             Document::Sequence(sequence) => {
                 let children = sequence
                     .children()
@@ -227,8 +226,7 @@ impl<A> ArcDoc<A> {
             Document::Break(breaker) => BoxDoc(Box::new(Document::Break(breaker))),
             Document::HardLinebreak => BoxDoc::hard_linebreak(),
 
-            Document::Group(policy, child)
-                => BoxDoc::group_with(policy, child.into_box()),
+            Document::Group(policy, child) => BoxDoc::group_with(policy, child.into_box()),
             Document::Sequence(sequence) => {
                 let children = sequence
                     .into_children()
@@ -402,7 +400,11 @@ impl<A> ArcDocBuilder<A> {
         Document::grouped_sequence(children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a grouped sequence with the specified policy.
-    pub fn grouped_sequence_with(&self, policy: GroupPolicy, children: Vec<ArcDoc<A>>) -> ArcDoc<A> {
+    pub fn grouped_sequence_with(
+        &self,
+        policy: GroupPolicy,
+        children: Vec<ArcDoc<A>>,
+    ) -> ArcDoc<A> {
         Document::grouped_sequence_with(policy, children, |inner| self.alloc(inner))
     }
     /// The smart constructor for a collection sequence.
