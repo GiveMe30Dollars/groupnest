@@ -1,4 +1,4 @@
-name: Rust Crate CI
+name: CI
 
 on:
   push:

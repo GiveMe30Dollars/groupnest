@@ -1,3 +1,8 @@
+[![Documentation](https://docs.rs/groupnest/badge.svg)](https://docs.rs/groupnest)
+[![Crates.io](https://img.shields.io/crates/v/groupnest.svg)](https://crates.io/crates/groupnest)
+[![GitHub](https://img.shields.io/badge/GitHub-groupnest-181717?logo=github)](https://github.com/GiveMe30Dollars/groupnest)
+[![CI](https://github.com/GiveMe30Dollars/groupnest/actions/workflows/ci.yml/badge.svg)](https://github.com/GiveMe30Dollars/groupnest/actions/workflows/ci.yml)
+
 Yet another Wadler-style pretty printer, for fun and profit!
 
 ## Quick Start
@@ -226,26 +231,26 @@ There's quite a few! A non-exhaustive list of existing options:
 - [`sparkly`](https://crates.io/crates/sparkly): Built-in terminal and ANSI coloring support.
 
 [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
-[`Document`]: /src/document.rs
-[`RefDoc`]: /src/handle/refdoc.rs
-[`RefDocBuilder`]: /src/handle/refdoc.rs
+[`Document`]: https://docs.rs/groupnest/latest/groupnest/document/enum.Document.html
+[`RefDoc`]: https://docs.rs/groupnest/latest/groupnest/struct.RefDoc.html
+[`RefDocBuilder`]: https://docs.rs/groupnest/latest/groupnest/struct.RefDocBuilder.html
 [`Arena`]: https://docs.rs/typed-arena/latest/typed_arena/struct.Arena.html
 [`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
-[`BoxDoc`]: /src/handle/boxdoc.rs
+[`BoxDoc`]: https://docs.rs/groupnest/latest/groupnest/struct.BoxDoc.html
 [`Arc`]: https://doc.rust-lang.org/std/sync/struct.Arc.html
-[`ArcDoc`]: /src/handle/arcdoc.rs
-[`ArcDocBuilder`]: /src/handle/arcdoc.rs
-[`Renderer`]: /src/renderer.rs
-[`LayoutEngine`]: /src/layout.rs
-[`LayoutSettings`]: /src/layout.rs
-[`Document::as_layout`]: /src/document.rs
-[`Document::as_layout_with`]: /src/document.rs
-[`PlaintextRenderer`]: /src/renderer.rs
-[`Document::to_plaintext`]: /src/document.rs
-[`Document::to_plaintext_with`]: /src/document.rs
+[`ArcDoc`]: https://docs.rs/groupnest/latest/groupnest/struct.ArcDoc.html
+[`ArcDocBuilder`]: https://docs.rs/groupnest/latest/groupnest/struct.ArcDocBuilder.html
+[`Renderer`]: https://docs.rs/groupnest/latest/groupnest/renderer/trait.Renderer.html
+[`LayoutEngine`]: https://docs.rs/groupnest/latest/groupnest/layout/struct.LayoutEngine.html
+[`LayoutSettings`]: https://docs.rs/groupnest/latest/groupnest/layout/struct.LayoutSettings.html
+[`Document::as_layout`]: https://docs.rs/groupnest/latest/groupnest/document/enum.Document.html#method.as_layout
+[`Document::as_layout_with`]: https://docs.rs/groupnest/latest/groupnest/document/enum.Document.html#method.as_layout_with
+[`PlaintextRenderer`]: https://docs.rs/groupnest/latest/groupnest/renderer/struct.PlaintextRenderer.html
+[`Document::to_plaintext`]: https://docs.rs/groupnest/latest/groupnest/document/enum.Document.html#method.to_plaintext
+[`Document::to_plaintext_with`]: https://docs.rs/groupnest/latest/groupnest/document/enum.Document.html#method.to_plaintext_with
 [`Deref<Target = Document<...>>`]: https://doc.rust-lang.org/std/ops/trait.Deref.html
-[`ColorPatch`]: /src/renderer.rs
-[`TermcolorRenderer`]: /src/renderer.rs
+[`ColorPatch`]: https://docs.rs/groupnest/latest/groupnest/renderer/struct.ColorPatch.html
+[`TermcolorRenderer`]: https://docs.rs/groupnest/latest/groupnest/renderer/struct.TermcolorRenderer.html
 [`serde::Serialize`]: https://docs.rs/serde/latest/serde/trait.Serialize.html
 [`serde::Deserialize`]: https://docs.rs/serde/latest/serde/trait.Deserialize.html
 [`Debug`]: https://doc.rust-lang.org/std/fmt/trait.Debug.html
