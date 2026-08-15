@@ -61,6 +61,7 @@ jobs:
   
   semver:
     name: Semver Check
+    if: ${{ vars.SEMVER_CHECKS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -73,7 +74,6 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
 
       - name: Check semver compatibility
-        if: ${{ vars.SEMVER_CHECKS_ENABLED == 'true' }}
         run: cargo semver-checks check-release
 
   docs:
@@ -91,12 +91,12 @@ jobs:
       - name: Build documentation
         env:
           RUSTDOCFLAGS: "--cfg docsrs -D warnings"
-        run: cargo +nightly doc --no-deps
+        run: cargo +nightly doc --no-deps --all-features
 
       - name: Test documentation
         env:
           RUSTDOCFLAGS: "--cfg docsrs -D warnings"
-        run: cargo +nightly test --doc
+        run: cargo +nightly test --doc --all-features
 
   readme:
     name: README
