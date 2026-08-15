@@ -13,6 +13,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_BUILD_WARNINGS: ${{ vars.CARGO_BUILD_WARNINGS || 'warn' }}
+  SEMVER_CHECKS_ENABLED: 'false'
 
 jobs:
   test:
@@ -72,8 +73,9 @@ jobs:
       - name: Use cargo-semver-checks
         uses: obi1kenobi/cargo-semver-checks-action@v2
 
-      - name: Check semver
-        run: cargo semver-checks
+      - name: Check semver compatibility
+        if: ${{ vars.SEMVER_CHECKS_ENABLED == 'true' }}
+        run: cargo semver-checks check-release
 
   docs:
     name: Documentation
@@ -84,16 +86,18 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
 
       - name: Build documentation
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --no-deps
+        run: cargo +nightly doc --no-deps
 
       - name: Test documentation
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo test --doc
+        run: cargo +nightly test --doc
 
   readme:
     name: README

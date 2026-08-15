@@ -183,3 +183,5 @@ Maybe, probably not.
 [`serde::Serialize`]: https://docs.rs/serde/latest/serde/trait.Serialize.html
 [`serde::Deserialize`]: https://docs.rs/serde/latest/serde/trait.Deserialize.html
 [`Debug`]: https://doc.rust-lang.org/std/fmt/trait.Debug.html
+
+License: MIT OR Apache-2.0
