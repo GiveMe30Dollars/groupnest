@@ -322,7 +322,7 @@ mod termcolor_renderer {
     /// The default value for this type is a patch that does nothing; the identity patch that,
     /// when applied to a [`ColorSpec`], returns it unchanged. This results in more ergonomic usage patterns:
     /// ```rust
-    /// # use groupnest::termcolor_renderer::ColorPatch;
+    /// # use groupnest::ColorPatch;
     /// let bold_patch = ColorPatch {
     ///     bold: Some(true),
     ///     ..Default::default()
