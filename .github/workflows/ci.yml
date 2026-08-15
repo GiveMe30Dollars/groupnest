@@ -13,7 +13,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_BUILD_WARNINGS: ${{ vars.CARGO_BUILD_WARNINGS || 'warn' }}
-  SEMVER_CHECKS_ENABLED: 'false'
 
 jobs:
   test:
@@ -91,12 +90,12 @@ jobs:
 
       - name: Build documentation
         env:
-          RUSTDOCFLAGS: "-D warnings"
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
         run: cargo +nightly doc --no-deps
 
       - name: Test documentation
         env:
-          RUSTDOCFLAGS: "-D warnings"
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
         run: cargo +nightly test --doc
 
   readme:
@@ -113,7 +112,7 @@ jobs:
         run: cargo install cargo-readme
 
       - name: Generate README
-        run: cargo readme > /tmp/README.generated.md
+        run: cargo readme --input src/README.rustdoc.md --output README.generated.md --no-comment-extraction
 
       - name: Check README
-        run: diff -u README.md /tmp/README.generated.md
+        run: git diff --exit-code -- README.md
