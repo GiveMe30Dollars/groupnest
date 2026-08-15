@@ -116,3 +116,20 @@ jobs:
 
       - name: Check README
         run: git diff --exit-code -- README.md
+
+  publish-dry-run:
+    name: Publish Dry Run
+    if: ${{ vars.SEMVER_CHECKS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check dry run
+        run: cargo publish --dry-run
+
+      - name: Check dry run for all features
+        run: cargo publish --dry-run
