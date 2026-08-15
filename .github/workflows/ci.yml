@@ -1,11 +1,13 @@
-name: CI
+name: Rust Crate CI
 
 on:
   push:
     branches:
+      - "master"
       - "main"
   pull_request:
     branches:
+      - "master"
       - "main"
 
 env:
@@ -56,6 +58,22 @@ jobs:
       
       - name: Check formatting
         run: cargo fmt --all -- --check
+  
+  semver:
+    name: Semver Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Use cargo-semver-checks
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+
+      - name: Check semver
+        run: cargo semver-checks
 
   docs:
     name: Documentation
