@@ -183,7 +183,7 @@ impl<A> ArcDoc<A> {
     }
 
     /// Produces an equivalent [`BoxDoc`] from `&self`, cloning where required.
-    /// 
+    ///
     /// Identical to an equivalent [`Document::to_representation`] invokation.
     pub fn to_box(&self) -> BoxDoc<A>
     where

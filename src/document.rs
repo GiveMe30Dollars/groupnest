@@ -32,7 +32,7 @@ pub struct FlatFragment<'s> {
 impl<'s> Serialize for FlatFragment<'s> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         self.inner.serialize(serializer)
     }
@@ -41,11 +41,10 @@ impl<'s> Serialize for FlatFragment<'s> {
 impl<'de, 's> Deserialize<'de> for FlatFragment<'s> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>
+        D: serde::Deserializer<'de>,
     {
         let inner = Cow::<'s, str>::deserialize(deserializer)?;
-        FlatFragment::new(inner)
-            .map_err(serde::de::Error::custom)
+        FlatFragment::new(inner).map_err(serde::de::Error::custom)
     }
 }
 
@@ -286,19 +285,25 @@ impl<D> Sequence<D> {
     }
 }
 #[cfg(feature = "serde")]
-impl<D> Serialize for Sequence<D> where D : Serialize {
+impl<D> Serialize for Sequence<D>
+where
+    D: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer
+        S: serde::Serializer,
     {
         self.children.serialize(serializer)
     }
 }
 #[cfg(feature = "serde")]
-impl<'s, 'de, D, A> Deserialize<'de> for Sequence<D> where D : Deserialize<'de> + Deref<Target = Document<'s, D, A>> {
+impl<'s, 'de, D, A> Deserialize<'de> for Sequence<D>
+where
+    D: Deserialize<'de> + Deref<Target = Document<'s, D, A>>,
+{
     fn deserialize<DE>(deserializer: DE) -> Result<Self, DE::Error>
     where
-        DE: serde::Deserializer<'de>
+        DE: serde::Deserializer<'de>,
     {
         let children = Box::<[D]>::deserialize(deserializer)?;
         Ok(Sequence::new(children))
@@ -570,21 +575,21 @@ where
     }
 
     /// Deep clones this document into another representation form.
-    /// 
+    ///
     /// The resulting representation preserves semantic equivalence,
     /// but does not necessarily guarantee structural equivalence;
     /// internal smart construction and the given allocation strategy may opportunistically
     /// eliminate, simplify, deduplicate, or otherwise optimize equivalent forms.
-    /// 
+    ///
     /// This conversion preserves the current document, cloning common resources where needed.
     /// Specialized `into_...` methods provided by various wrapper types
     /// may instead consume the current document where possible,
     /// taking common resources as it is converted to the result representation.
     pub fn to_representation<D2, F>(&self, alloc: &mut F) -> D2
     where
-        D2 : Deref<Target = Document<'s, D2, A>>,
-        F : FnMut(Document<'s, D2, A>) -> D2,
-        A : Clone,
+        D2: Deref<Target = Document<'s, D2, A>>,
+        F: FnMut(Document<'s, D2, A>) -> D2,
+        A: Clone,
     {
         match self {
             Document::Nil => Document::nil(alloc),
@@ -605,9 +610,11 @@ where
             Document::Nest(indentation, inner) => {
                 Document::nest(*indentation, inner.to_representation(alloc), alloc)
             }
-            Document::Annotation(annotation, inner) => {
-                Document::annotation((**annotation).clone(), inner.to_representation(alloc), alloc)
-            },
+            Document::Annotation(annotation, inner) => Document::annotation(
+                (**annotation).clone(),
+                inner.to_representation(alloc),
+                alloc,
+            ),
         }
     }
 
