@@ -249,3 +249,205 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
         Document::annotation(annotation, inner, |inner| self.alloc(inner))
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde_seed {
+    use std::{any::type_name, marker::PhantomData};
+    use derive_more::From;
+    use serde::{Deserialize, de::{DeserializeSeed, VariantAccess, Visitor}};
+    use crate::{GroupPolicy, RefDoc, RefDocBuilder, document::{Break, Document, FlatFragment}};
+
+    impl<'s, 'doc, A> DeserializeSeed<'s> for &'doc RefDocBuilder<'s, 'doc, A> where A: Deserialize<'s> {
+        type Value = RefDoc<'s, 'doc, A>;
+    
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'s> {
+            deserializer.deserialize_enum(
+                "Document", 
+                &[
+                    "Nil",
+                    "Text",
+                    "Break",
+                    "HardLinebreak",
+                    "Group",
+                    "Sequence",
+                    "Nest",
+                    "Annotation",
+                ],
+                RefDocVisitor::from(self))
+        }
+    }
+
+    // SANITY CHECK:
+    // pub enum Document<'s, D, A = ()> {
+    //     Nil,
+    //     Text(FlatFragment<'s>),
+    //     Break(Break<'s>),
+    //     HardLinebreak,
+    //     Group(GroupPolicy, D),
+    //     Sequence(Sequence<D>),
+    //     Nest(usize, D),
+    //     Annotation(Box<A>, D),
+    // }
+
+    #[derive(Deserialize)]
+    enum DocumentVariant {
+        Nil,
+        Text,
+        Break,
+        HardLinebreak,
+        Group,
+        Sequence,
+        Nest,
+        Annotation,
+    }
+
+    /// The main RefDocVisitor.
+    #[derive(From)]
+    struct RefDocVisitor<'s, 'doc, A> {
+        builder: &'doc RefDocBuilder<'s, 'doc, A>,
+    }
+
+    impl<'s, 'doc, A> DeserializeSeed<'s> for RefDocVisitor<'s, 'doc, A> where A: Deserialize<'s> {
+        type Value = RefDoc<'s, 'doc, A>;
+    
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'s> {
+            deserializer.deserialize_enum(
+                "Document", 
+                &[
+                    "Nil",
+                    "Text",
+                    "Break",
+                    "HardLinebreak",
+                    "Group",
+                    "Sequence",
+                    "Nest",
+                    "Annotation",
+                ],
+                self)
+        }
+    }
+    impl<'s, 'doc, A> Visitor<'s> for RefDocVisitor<'s, 'doc, A> where A : Deserialize<'s> {
+        type Value = RefDoc<'s, 'doc, A>;
+    
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a Document")
+        }
+        fn visit_enum<B>(self, data: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::EnumAccess<'s>,
+        {
+            let (variant, values) = data.variant::<DocumentVariant>()?;
+            match variant {
+
+                // Nullary variants
+                DocumentVariant::Nil => {
+                    values.unit_variant()?;
+                    Ok(self.builder.nil())
+                },
+                DocumentVariant::HardLinebreak => {
+                    values.unit_variant()?;
+                    Ok(self.builder.hard_linebreak())
+                },
+
+                // Singleton variants, with the payload implementing `Deserialize`.
+                DocumentVariant::Text => {
+                    let text = values.newtype_variant::<FlatFragment<'s>>()?;
+                    Ok(self.builder.alloc(Document::Text(text)))
+                },
+                DocumentVariant::Break => {
+                    let breaker = values.newtype_variant::<Break<'s>>()?;
+                    Ok(self.builder.alloc(Document::Break(breaker)))
+                },
+
+                // Two-tuple variants, with a `Deserialize`-able first payload and a subsequent recursive paylaod.
+                DocumentVariant::Group => {
+                    let (policy, child) = values.tuple_variant(2, 
+                        TwoTupleVisitor::<'s, 'doc, A, GroupPolicy>::from(self.builder))?;
+                    Ok(self.builder.group_with(policy, child))
+                },
+                DocumentVariant::Nest => {
+                    let (indentation, inner) = values.tuple_variant(2, 
+                        TwoTupleVisitor::<'s, 'doc, A, usize>::from(self.builder))?;
+                    Ok(self.builder.nest(indentation, inner))
+                },
+                DocumentVariant::Annotation => {
+                    let (annotation, inner) = values.tuple_variant(2, 
+                        TwoTupleVisitor::<'s, 'doc, A, A>::from(self.builder))?;
+                    Ok(self.builder.annotation(annotation, inner))
+                },
+
+                // Sequence, which carries a collection of recursive children.
+                DocumentVariant::Sequence => {
+                    let children = values.newtype_variant_seed(SequenceVisitor::from(self.builder))?;
+                    Ok(self.builder.sequence(children))
+                },
+            }
+        }
+    }
+
+    /// A visitor for a two-arity tuple which of type (O, RefDoc).
+    /// O must implement Deserialize<'s> for this to be meaningful.
+    struct TwoTupleVisitor<'s, 'doc, A, O> {
+        builder: &'doc RefDocBuilder<'s, 'doc, A>,
+        _other: PhantomData<O>,
+    }
+    impl<'s, 'doc, A, O> From<&'doc RefDocBuilder<'s, 'doc, A>> for TwoTupleVisitor<'s, 'doc, A, O> {
+        fn from(builder: &'doc RefDocBuilder<'s, 'doc, A>) -> Self {
+            TwoTupleVisitor { builder, _other: PhantomData }
+        }
+    }
+
+    impl<'s, 'doc, A, O> Visitor<'s> for TwoTupleVisitor<'s, 'doc, A, O> where A : Deserialize<'s>, O : Deserialize<'s> {
+        type Value = (O, RefDoc<'s, 'doc, A>);
+    
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str(&format!("a two-arity tuple of type ({}, RefDoc)", type_name::<O>()))
+        }
+        fn visit_seq<B>(self, mut seq: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::SeqAccess<'s>,
+        {
+            let first_element = seq.next_element()?
+                .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+            let recursive_element = seq.next_element_seed(self.builder)?
+                .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+            Ok((first_element, recursive_element))
+        }
+    }
+
+    #[derive(From)]
+    struct SequenceVisitor<'s, 'doc, A> {
+        builder: &'doc RefDocBuilder<'s, 'doc, A>,
+    }
+    impl<'s, 'doc, A> DeserializeSeed<'s> for SequenceVisitor<'s, 'doc, A> where A : Deserialize<'s> {
+        type Value = Vec<RefDoc<'s, 'doc, A>>;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'s>
+        {
+            deserializer.deserialize_seq(self)
+        }
+    }
+    impl<'s, 'doc, A> Visitor<'s> for SequenceVisitor<'s, 'doc, A> where A : Deserialize<'s> {
+        type Value = Vec<RefDoc<'s, 'doc, A>>;
+    
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence of RefDocs")
+        }
+        fn visit_seq<B>(self, mut seq: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::SeqAccess<'s>,
+        {
+            let mut children = Vec::new();
+            while let Some(child) = seq.next_element_seed(RefDocVisitor::from(self.builder))? {
+                children.push(child);
+            }
+            Ok(children)
+        }
+    }
+}

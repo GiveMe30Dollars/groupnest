@@ -182,34 +182,17 @@ impl<A> ArcDoc<A> {
         Document::annotation(annotation, inner, Into::into)
     }
 
-    /// Produces an equivalent `BoxDoc` from `&self`, cloning where required.
+    /// Produces an equivalent [`BoxDoc`] from `&self`, cloning where required.
+    /// 
+    /// Identical to an equivalent [`Document::to_representation`] invokation.
     pub fn to_box(&self) -> BoxDoc<A>
     where
         A: Clone,
     {
-        match self.deref() {
-            Document::Nil => BoxDoc::nil(),
-            Document::Text(fragment) => BoxDoc(Box::new(Document::Text(fragment.clone()))),
-            Document::Break(breaker) => BoxDoc(Box::new(Document::Break(breaker.clone()))),
-            Document::HardLinebreak => BoxDoc::hard_linebreak(),
-
-            Document::Group(policy, child) => BoxDoc::group_with(*policy, child.to_box()),
-            Document::Sequence(sequence) => {
-                let children = sequence
-                    .children()
-                    .iter()
-                    .map(|child| child.to_box())
-                    .collect::<Vec<_>>();
-                BoxDoc::sequence(children)
-            }
-            Document::Nest(indentation, child) => BoxDoc::nest(*indentation, child.to_box()),
-            Document::Annotation(annotation, child) => {
-                BoxDoc::annotation((**annotation).clone(), child.to_box())
-            }
-        }
+        self.0.to_representation(&mut Into::into)
     }
 
-    /// Produces an equivalent `BoxDoc` from `self`, taking where possible and cloning otherwise.
+    /// Produces an equivalent [`BoxDoc`] from `self`, taking where possible and cloning otherwise.
     pub fn into_box(self) -> BoxDoc<A>
     where
         A: Clone,

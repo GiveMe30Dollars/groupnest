@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+The completion of support for the `serde` feature flag.
+
+### Added
+
+- **`serde` feature flag:** `de::DeserializeSeed` implementation for `RefDocBuilder`.
+- `Document::to_representation`, which converts any document type to an equivalent representation form.
+
+### Changed
+
+- **`serde` feature flag:** Various changes to `Serialize` and `Deserialize` implementations to erase and reconstruct derived internal fields of certain types essential to the correctness of the layout algorithm.
+
 ## [0.1.1] - 2026-08-16
 
 ### Added

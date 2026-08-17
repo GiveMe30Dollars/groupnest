@@ -7,6 +7,8 @@ use std::{
     ops::{Add, Deref},
 };
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use unicode_width::UnicodeWidthStr;
 
@@ -22,10 +24,29 @@ use crate::{
 ///
 /// This type is not intended to be constructed externally.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FlatFragment<'s> {
     inner: Cow<'s, str>,
     width: usize,
+}
+#[cfg(feature = "serde")]
+impl<'s> Serialize for FlatFragment<'s> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        self.inner.serialize(serializer)
+    }
+}
+#[cfg(feature = "serde")]
+impl<'de, 's> Deserialize<'de> for FlatFragment<'s> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>
+    {
+        let inner = Cow::<'s, str>::deserialize(deserializer)?;
+        FlatFragment::new(inner)
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Error)]
@@ -249,7 +270,6 @@ pub enum GroupPolicy {
 /// these values are cached upon construction for collections,
 /// leading to time complexity linear to the depth of the document tree.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sequence<D> {
     children: Box<[D]>,
     pub(crate) status: BreakStatus,
@@ -265,6 +285,26 @@ impl<D> Sequence<D> {
         self.children
     }
 }
+#[cfg(feature = "serde")]
+impl<D> Serialize for Sequence<D> where D : Serialize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        self.children.serialize(serializer)
+    }
+}
+#[cfg(feature = "serde")]
+impl<'s, 'de, D, A> Deserialize<'de> for Sequence<D> where D : Deserialize<'de> + Deref<Target = Document<'s, D, A>> {
+    fn deserialize<DE>(deserializer: DE) -> Result<Self, DE::Error>
+    where
+        DE: serde::Deserializer<'de>
+    {
+        let children = Box::<[D]>::deserialize(deserializer)?;
+        Ok(Sequence::new(children))
+    }
+}
+
 impl<'s, D, A> Sequence<D>
 where
     D: Deref<Target = Document<'s, D, A>>,
@@ -399,7 +439,14 @@ where
 /// and while a best-effort attempt is made to reduce or flatten equivalent forms,
 /// some transformations are not possible without global inspection and reconstruction of the document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        serialize = "D: Serialize, A : Serialize",
+        deserialize = "D: Deserialize<'de> + Deref<Target = Document<'s, D, A>>, A: Deserialize<'de>"
+    ))
+)]
 pub enum Document<'s, D, A = ()> {
     /// A no-op node. This node displays as `""`, carries no meaning, and builders will attempt to eliminate it.
     Nil,
@@ -520,6 +567,48 @@ where
     /// Borrows the notation document to produce a plaintext document with the specified settings, with annotations stripped.
     pub fn to_plaintext_with(&self, settings: LayoutSettings) -> Result<String, RenderError> {
         PlaintextRenderer::render_to_string(self.as_layout_with(settings).strip_annotation())
+    }
+
+    /// Deep clones this document into another representation form.
+    /// 
+    /// The resulting representation preserves semantic equivalence,
+    /// but does not necessarily guarantee structural equivalence;
+    /// internal smart construction and the given allocation strategy may opportunistically
+    /// eliminate, simplify, deduplicate, or otherwise optimize equivalent forms.
+    /// 
+    /// This conversion preserves the current document, cloning common resources where needed.
+    /// Specialized `into_...` methods provided by various wrapper types
+    /// may instead consume the current document where possible,
+    /// taking common resources as it is converted to the result representation.
+    pub fn to_representation<D2, F>(&self, alloc: &mut F) -> D2
+    where
+        D2 : Deref<Target = Document<'s, D2, A>>,
+        F : FnMut(Document<'s, D2, A>) -> D2,
+        A : Clone,
+    {
+        match self {
+            Document::Nil => Document::nil(alloc),
+            Document::Text(fragment) => alloc(Document::Text(fragment.clone())),
+            Document::Break(breaker) => alloc(Document::Break(breaker.clone())),
+            Document::HardLinebreak => Document::hard_linebreak(alloc),
+            Document::Group(policy, child) => {
+                Document::group_with(*policy, child.to_representation(alloc), alloc)
+            }
+            Document::Sequence(sequence) => {
+                let children = sequence
+                    .children()
+                    .iter()
+                    .map(|child| child.to_representation(alloc))
+                    .collect::<Vec<_>>();
+                Document::sequence(children, alloc)
+            }
+            Document::Nest(indentation, inner) => {
+                Document::nest(*indentation, inner.to_representation(alloc), alloc)
+            }
+            Document::Annotation(annotation, inner) => {
+                Document::annotation((**annotation).clone(), inner.to_representation(alloc), alloc)
+            },
+        }
     }
 
     // Smart Construction Methods
