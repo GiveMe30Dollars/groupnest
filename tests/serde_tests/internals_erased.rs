@@ -2,10 +2,7 @@ use expect_test::expect;
 use proptest::prelude::*;
 use serde_json::{from_str, to_string, to_string_pretty};
 
-use groupnest::{
-    ArcDoc, ArcDocBuilder, BoxDoc,
-    document::FlatFragment,
-};
+use groupnest::{ArcDoc, ArcDocBuilder, BoxDoc, document::FlatFragment};
 
 use crate::fuzzing::{arbitrary_boxdoc_leaf, arbitrary_settings};
 

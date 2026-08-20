@@ -23,7 +23,7 @@ use crate::{
 /// ## Note on [`serde`] Support
 ///
 /// As this type is unable to contruct itself, it currently only implements [`serde::Serialize`]. Use [`RefDocBuilder`] instead.
-/// 
+///
 /// [`RefDoc`], [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
 /// and hence share identical serialized representations.
 #[repr(transparent)]

@@ -29,7 +29,7 @@ use crate::{
 ///
 /// Due to using [`Arc`], shared pointer equality is currently not preserved across serialization and deserialization.
 /// Prefer [`ArcDocBuilder`] instead.
-/// 
+///
 /// [`RefDoc`](crate::RefDoc), [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
 /// and hence share identical serialized representations.
 #[repr(transparent)]
