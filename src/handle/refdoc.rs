@@ -4,7 +4,7 @@ use derive_more::{AsRef, From, Into};
 use typed_arena::Arena;
 
 #[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize, de::DeserializeSeed};
 
 use crate::{
     document::{BreakNodeInvalid, ContainsTab, Document, FragmentError, GroupPolicy},
@@ -22,12 +22,10 @@ use crate::{
 ///
 /// ## Note on [`serde`] Support
 ///
-/// As this type is unable to contruct itself, it currently only implements [`serde::Serialize`].
+/// As this type is unable to contruct itself, it currently only implements [`serde::Serialize`]. Use [`RefDocBuilder`] instead.
+/// 
 /// [`RefDoc`], [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
-/// and hence share identical serialized representations,
-/// so a serialized [`RefDoc`] may be deserialized as the other two representations.
-///
-/// Future support would entail implementing [`serde::de::DeserializeSeed`] for [`RefDocBuilder`].
+/// and hence share identical serialized representations.
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into, AsRef)]
 pub struct RefDoc<'s, 'doc, A = ()>(pub &'doc Document<'s, Self, A>);
@@ -249,6 +247,33 @@ impl<'s, 'doc, A> RefDocBuilder<'s, 'doc, A> {
         Document::annotation(annotation, inner, |inner| self.alloc(inner))
     }
 }
+#[cfg(feature = "serde")]
+impl<'s, 'doc, A> DeserializeSeed<'s> for &'doc RefDocBuilder<'s, 'doc, A>
+where
+    A: Deserialize<'s>,
+{
+    type Value = RefDoc<'s, 'doc, A>;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'s>,
+    {
+        deserializer.deserialize_enum(
+            "Document",
+            &[
+                "Nil",
+                "Text",
+                "Break",
+                "HardLinebreak",
+                "Group",
+                "Sequence",
+                "Nest",
+                "Annotation",
+            ],
+            serde_support::RefDocVisitor::from(self),
+        )
+    }
+}
 
 /// This module adds `DeserializeSeed` support to `RefDocBuilder`.
 ///
@@ -268,33 +293,6 @@ mod serde_support {
         de::{DeserializeSeed, VariantAccess, Visitor},
     };
     use std::{any::type_name, marker::PhantomData};
-
-    impl<'s, 'doc, A> DeserializeSeed<'s> for &'doc RefDocBuilder<'s, 'doc, A>
-    where
-        A: Deserialize<'s>,
-    {
-        type Value = RefDoc<'s, 'doc, A>;
-
-        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where
-            D: serde::Deserializer<'s>,
-        {
-            deserializer.deserialize_enum(
-                "Document",
-                &[
-                    "Nil",
-                    "Text",
-                    "Break",
-                    "HardLinebreak",
-                    "Group",
-                    "Sequence",
-                    "Nest",
-                    "Annotation",
-                ],
-                RefDocVisitor::from(self),
-            )
-        }
-    }
 
     // SANITY CHECK:
     // pub enum Document<'s, D, A = ()> {
@@ -322,7 +320,7 @@ mod serde_support {
 
     /// The main RefDocVisitor.
     #[derive(From)]
-    struct RefDocVisitor<'s, 'doc, A> {
+    pub(crate) struct RefDocVisitor<'s, 'doc, A> {
         builder: &'doc RefDocBuilder<'s, 'doc, A>,
     }
 

@@ -28,8 +28,10 @@ use crate::{
 /// ## Note on [`serde`] Support
 ///
 /// Due to using [`Arc`], shared pointer equality is currently not preserved across serialization and deserialization.
-///
-/// Future support for shared deserialization would entail implementing [`serde::de::DeserializeSeed`] for [`ArcDocBuilder`].
+/// Prefer [`ArcDocBuilder`] instead.
+/// 
+/// [`RefDoc`](crate::RefDoc), [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
+/// and hence share identical serialized representations.
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Hash, AsRef)]
 #[as_ref(forward)]
