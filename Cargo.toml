@@ -1,10 +1,11 @@
 [package]
 name = "groupnest"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Yet another Wadler-style pretty printer, for fun and profit!"
 repository = "https://github.com/GiveMe30Dollars/groupnest"
+keywords = ["pretty-printing"]
 
 [dependencies]
 derive_more = {version = "2.1.1", features = ["as_ref", "from", "into"]}
@@ -17,6 +18,8 @@ unicode-width = "0.2.2"
 [dev-dependencies]
 expect-test = "1.5.1"
 indexmap = "2.14.0"
+proptest = "1.11.0"
+serde_json = "1.0.151"
 
 [features]
 termcolor = ["dep:termcolor"]

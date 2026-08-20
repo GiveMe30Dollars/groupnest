@@ -28,8 +28,10 @@ use crate::{
 /// ## Note on [`serde`] Support
 ///
 /// Due to using [`Arc`], shared pointer equality is currently not preserved across serialization and deserialization.
+/// Prefer [`ArcDocBuilder`] instead.
 ///
-/// Future support for shared deserialization would entail implementing [`serde::de::DeserializeSeed`] for [`ArcDocBuilder`].
+/// [`RefDoc`](crate::RefDoc), [`BoxDoc`](crate::BoxDoc) and [`ArcDoc`](crate::ArcDoc) erase their wrappers during serialization,
+/// and hence share identical serialized representations.
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Hash, AsRef)]
 #[as_ref(forward)]
@@ -182,34 +184,17 @@ impl<A> ArcDoc<A> {
         Document::annotation(annotation, inner, Into::into)
     }
 
-    /// Produces an equivalent `BoxDoc` from `&self`, cloning where required.
+    /// Produces an equivalent [`BoxDoc`] from `&self`, cloning where required.
+    ///
+    /// Identical to an equivalent [`Document::to_representation`] invokation.
     pub fn to_box(&self) -> BoxDoc<A>
     where
         A: Clone,
     {
-        match self.deref() {
-            Document::Nil => BoxDoc::nil(),
-            Document::Text(fragment) => BoxDoc(Box::new(Document::Text(fragment.clone()))),
-            Document::Break(breaker) => BoxDoc(Box::new(Document::Break(breaker.clone()))),
-            Document::HardLinebreak => BoxDoc::hard_linebreak(),
-
-            Document::Group(policy, child) => BoxDoc::group_with(*policy, child.to_box()),
-            Document::Sequence(sequence) => {
-                let children = sequence
-                    .children()
-                    .iter()
-                    .map(|child| child.to_box())
-                    .collect::<Vec<_>>();
-                BoxDoc::sequence(children)
-            }
-            Document::Nest(indentation, child) => BoxDoc::nest(*indentation, child.to_box()),
-            Document::Annotation(annotation, child) => {
-                BoxDoc::annotation((**annotation).clone(), child.to_box())
-            }
-        }
+        self.0.to_representation(&mut Into::into)
     }
 
-    /// Produces an equivalent `BoxDoc` from `self`, taking where possible and cloning otherwise.
+    /// Produces an equivalent [`BoxDoc`] from `self`, taking where possible and cloning otherwise.
     pub fn into_box(self) -> BoxDoc<A>
     where
         A: Clone,
@@ -245,7 +230,7 @@ impl<A> ArcDoc<A> {
 
 /// The builder structure for [`ArcDoc`].
 ///
-/// Unlike [`RefDocBuilder`](crate::RefDocBuilder), this builder allocates onto the heap via [`Arc`],
+/// Unlike [`ArcDocBuilder`](crate::ArcDocBuilder), this builder allocates onto the heap via [`Arc`],
 /// and serves to deduplicate leaf nodes already present in the current document.
 ///
 /// ## Note on [`Document`](crate::document::Document) Smart Constructors (ie. Why `&self`?)
@@ -440,3 +425,248 @@ const _: () = {
     assert_send::<ArcDoc<()>>();
     assert_send::<ArcDoc<String>>();
 };
+
+/// This module adds `DeserializeSeed` support to `ArcDocBuilder`.
+///
+/// This mostly entailed threading `ArcDocBuilder` anywhere an `ArcDoc` would need to be constructed,
+/// then invoking the respective smart construction methods on it.
+///
+/// This is made verbose by `serde` being verbose.
+#[cfg(feature = "serde")]
+mod serde_support {
+    use crate::{
+        ArcDoc, ArcDocBuilder, GroupPolicy,
+        document::{Break, Document, FlatFragment},
+    };
+    use derive_more::From;
+    use serde::{
+        Deserialize,
+        de::{DeserializeSeed, VariantAccess, Visitor},
+    };
+    use std::{any::type_name, marker::PhantomData};
+
+    impl<'de, A> DeserializeSeed<'de> for &ArcDocBuilder<A>
+    where
+        A: Deserialize<'de>,
+    {
+        type Value = ArcDoc<A>;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_enum(
+                "Document",
+                &[
+                    "Nil",
+                    "Text",
+                    "Break",
+                    "HardLinebreak",
+                    "Group",
+                    "Sequence",
+                    "Nest",
+                    "Annotation",
+                ],
+                ArcDocVisitor::from(self),
+            )
+        }
+    }
+
+    // SANITY CHECK:
+    // pub enum Document<'s, D, A = ()> {
+    //     Nil,
+    //     Text(FlatFragment<'s>),
+    //     Break(Break<'s>),
+    //     HardLinebreak,
+    //     Group(GroupPolicy, D),
+    //     Sequence(Sequence<D>),
+    //     Nest(usize, D),
+    //     Annotation(Box<A>, D),
+    // }
+
+    #[derive(Deserialize)]
+    enum DocumentVariant {
+        Nil,
+        Text,
+        Break,
+        HardLinebreak,
+        Group,
+        Sequence,
+        Nest,
+        Annotation,
+    }
+
+    /// The main ArcDocVisitor.
+    #[derive(From)]
+    struct ArcDocVisitor<'b, A> {
+        builder: &'b ArcDocBuilder<A>,
+    }
+
+    impl<'de, 'b, A> DeserializeSeed<'de> for ArcDocVisitor<'b, A>
+    where
+        A: Deserialize<'de>,
+    {
+        type Value = ArcDoc<A>;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_enum(
+                "Document",
+                &[
+                    "Nil",
+                    "Text",
+                    "Break",
+                    "HardLinebreak",
+                    "Group",
+                    "Sequence",
+                    "Nest",
+                    "Annotation",
+                ],
+                self,
+            )
+        }
+    }
+    impl<'de, 'b, A> Visitor<'de> for ArcDocVisitor<'b, A>
+    where
+        A: Deserialize<'de>,
+    {
+        type Value = ArcDoc<A>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a Document")
+        }
+        fn visit_enum<B>(self, data: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::EnumAccess<'de>,
+        {
+            let (variant, values) = data.variant::<DocumentVariant>()?;
+            match variant {
+                // Nullary variants
+                DocumentVariant::Nil => {
+                    values.unit_variant()?;
+                    Ok(self.builder.nil())
+                }
+                DocumentVariant::HardLinebreak => {
+                    values.unit_variant()?;
+                    Ok(self.builder.hard_linebreak())
+                }
+
+                // Singleton variants, with the payload implementing `Deserialize`.
+                DocumentVariant::Text => {
+                    let text = values.newtype_variant::<FlatFragment<'static>>()?;
+                    Ok(self.builder.alloc(Document::Text(text)))
+                }
+                DocumentVariant::Break => {
+                    let breaker = values.newtype_variant::<Break<'static>>()?;
+                    Ok(self.builder.alloc(Document::Break(breaker)))
+                }
+
+                // Two-tuple variants, with a `Deserialize`-able first payload and a subsequent recursive paylaod.
+                DocumentVariant::Group => {
+                    let (policy, child) = values
+                        .tuple_variant(2, TwoTupleVisitor::<A, GroupPolicy>::from(self.builder))?;
+                    Ok(self.builder.group_with(policy, child))
+                }
+                DocumentVariant::Nest => {
+                    let (indentation, inner) =
+                        values.tuple_variant(2, TwoTupleVisitor::<A, usize>::from(self.builder))?;
+                    Ok(self.builder.nest(indentation, inner))
+                }
+                DocumentVariant::Annotation => {
+                    let (annotation, inner) =
+                        values.tuple_variant(2, TwoTupleVisitor::<A, A>::from(self.builder))?;
+                    Ok(self.builder.annotation(annotation, inner))
+                }
+
+                // Sequence, which carries a collection of recursive children.
+                DocumentVariant::Sequence => {
+                    let children =
+                        values.newtype_variant_seed(SequenceVisitor::from(self.builder))?;
+                    Ok(self.builder.sequence(children))
+                }
+            }
+        }
+    }
+
+    /// A visitor for a two-arity tuple which of type (O, ArcDoc).
+    /// O must implement Deserialize<'s> for this to be meaningful.
+    struct TwoTupleVisitor<'b, A, O> {
+        builder: &'b ArcDocBuilder<A>,
+        _other: PhantomData<O>,
+    }
+    impl<'b, A, O> From<&'b ArcDocBuilder<A>> for TwoTupleVisitor<'b, A, O> {
+        fn from(builder: &'b ArcDocBuilder<A>) -> Self {
+            TwoTupleVisitor {
+                builder,
+                _other: PhantomData,
+            }
+        }
+    }
+
+    impl<'de, 'b, A, O> Visitor<'de> for TwoTupleVisitor<'b, A, O>
+    where
+        A: Deserialize<'de>,
+        O: Deserialize<'de>,
+    {
+        type Value = (O, ArcDoc<A>);
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str(&format!(
+                "a two-arity tuple of type ({}, ArcDoc)",
+                type_name::<O>()
+            ))
+        }
+        fn visit_seq<B>(self, mut seq: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::SeqAccess<'de>,
+        {
+            let first_element = seq
+                .next_element()?
+                .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+            let recursive_element = seq
+                .next_element_seed(self.builder)?
+                .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+            Ok((first_element, recursive_element))
+        }
+    }
+
+    #[derive(From)]
+    struct SequenceVisitor<'b, A> {
+        builder: &'b ArcDocBuilder<A>,
+    }
+    impl<'de, 'b, A> DeserializeSeed<'de> for SequenceVisitor<'b, A>
+    where
+        A: Deserialize<'de>,
+    {
+        type Value = Vec<ArcDoc<A>>;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_seq(self)
+        }
+    }
+    impl<'de, 'b, A> Visitor<'de> for SequenceVisitor<'b, A>
+    where
+        A: Deserialize<'de>,
+    {
+        type Value = Vec<ArcDoc<A>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence of RefDocs")
+        }
+        fn visit_seq<B>(self, mut seq: B) -> Result<Self::Value, B::Error>
+        where
+            B: serde::de::SeqAccess<'de>,
+        {
+            let mut children = Vec::new();
+            while let Some(child) = seq.next_element_seed(ArcDocVisitor::from(self.builder))? {
+                children.push(child);
+            }
+            Ok(children)
+        }
+    }
+}

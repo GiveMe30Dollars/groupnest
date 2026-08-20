@@ -5,7 +5,20 @@ All notable changes to `groupnest` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-08-21
+
+Extension of support for `serde`.
+
+### Added
+
+- **`serde` feature flag:** `de::DeserializeSeed` implementation for `RefDocBuilder` and `ArcDocBuilder`.
+- `Document::to_representation`, which converts any document type to an equivalent representation form.
+- Fuzzing-based testing for `serde` features and document conversion.
+- `pretty-printing` keyword to [`Cargo.toml`](/Cargo.toml) configuration.
+
+### Changed
+
+- **`serde` feature flag:** Various changes to `Serialize` and `Deserialize` implementations to erase and reconstruct derived internal fields of certain types essential to the correctness of the layout algorithm.
 
 ## [0.1.1] - 2026-08-16
 
