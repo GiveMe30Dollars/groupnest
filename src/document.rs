@@ -736,6 +736,7 @@ where
     }
 
     /// The smart constructor for a collection sequence.
+    ///
     /// Note that `Sequence` nodes do not automatically introduce layout decisions;
     /// use `Group` and its associated smart constructors.
     ///

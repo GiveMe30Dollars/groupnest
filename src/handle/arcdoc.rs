@@ -443,7 +443,7 @@ mod serde_support {
     };
     use std::{any::type_name, marker::PhantomData};
 
-    impl<'de, 'b, A> DeserializeSeed<'de> for &'b ArcDocBuilder<A>
+    impl<'de, A> DeserializeSeed<'de> for &ArcDocBuilder<A>
     where
         A: Deserialize<'de>,
     {

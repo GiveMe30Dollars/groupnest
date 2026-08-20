@@ -11,8 +11,9 @@ Extension of support for `serde`.
 
 ### Added
 
-- **`serde` feature flag:** `de::DeserializeSeed` implementation for `RefDocBuilder`.
+- **`serde` feature flag:** `de::DeserializeSeed` implementation for `RefDocBuilder` and `ArcDocBuilder`.
 - `Document::to_representation`, which converts any document type to an equivalent representation form.
+- Fuzzing-based testing for `serde` features and document conversion.
 - `pretty-printing` keyword to [`Cargo.toml`](/Cargo.toml) configuration.
 
 ### Changed
